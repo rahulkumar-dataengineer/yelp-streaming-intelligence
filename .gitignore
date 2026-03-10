@@ -37,3 +37,6 @@ checkpoint/
 
 
 .streamlit/
+
+exploration/*.txt
+claude.md

@@ -5,7 +5,7 @@ Tests connectivity to all three cloud services independently.
 Each test prints PASS or FAIL with a clear error message.
 
 Usage:
-    python validate_connections.py
+    python -m tests.validate_connections
 """
 
 import os

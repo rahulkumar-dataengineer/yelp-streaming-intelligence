@@ -8,13 +8,8 @@ pyspark==3.5.4
 pandas==2.2.3
 pyarrow==18.1.0
 
-# Embeddings
-sentence-transformers==5.1.2
-torch==2.5.1
-transformers==4.48.3
-
 # Vector DB
-pinecone==7.3.0
+qdrant-client==1.12.1
 
 # BigQuery / GCP
 google-cloud-bigquery==3.27.0
@@ -34,8 +29,8 @@ google-genai==1.65.0
 sqlalchemy==2.0.38
 sqlalchemy-bigquery==1.12.0
 
-# Web App
-streamlit==1.42.0
+# Web API
+flask==3.1.0
 
 # Utilities
 python-dotenv==1.0.1

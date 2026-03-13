@@ -1,152 +1,125 @@
-# ingestion/producer.py
 """
-Yelp Stream Producer — thin orchestration layer.
-
-Responsibilities:
-    1. Register graceful shutdown handlers (utils.signals)
-    2. Load the joined Yelp dataset    (ingestion.data_loader)
-    3. Connect to the Redpanda broker
-    4. Stream records at the configured rate
-
-This module contains NO business logic:
-    Data loading    → ingestion/data_loader.py
-    Serialisation   → utils/schema_contract.py
-    Shutdown        → utils/signals.py
-    Configuration   → config/settings.py
-
-Usage:
-    python -m ingestion.producer
+Streams businesses and reviews to separate Redpanda topics in parallel using one thread per topic. 
+Messages are keyed by business_id
 """
 
+import json
 import sys
-import time
+import threading
+from typing import Generator
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
 from config.settings import settings
-from ingestion.data_loader import build_joined_dataset
-from utils.schema_contract import row_to_message
-from utils.signals import get_running, register_signal_handlers
+from ingestion.data_loader import load_businesses, load_reviews
 from utils.logger import Logger
+from utils.signals import get_running, register_signal_handlers
 
 log = Logger.get(__name__)
 
 
-# ─── Kafka Producer Factory ───────────────────────────────────────────────────
-
 def create_producer() -> KafkaProducer:
-    """
-    Creates and returns a configured KafkaProducer instance.
-
-    Returns:
-        KafkaProducer connected to settings.kafka.BOOTSTRAP_SERVERS.
-
-    Raises:
-        KafkaError: If the broker is unreachable after 10 seconds.
-    """
-    log.debug("Connecting to Kafka broker at %s...", settings.kafka.BOOTSTRAP_SERVERS)
-
+    log.debug(f"Connecting to Kafka at {settings.kafka.BOOTSTRAP_SERVERS}")
     producer = KafkaProducer(
         bootstrap_servers=settings.kafka.BOOTSTRAP_SERVERS,
-        acks="all",           # Broker must acknowledge before continuing
-        retries=3,            # Retry up to 3 times on transient failures
-        max_block_ms=10_000,  # Raise after 10s if broker is unreachable
+        acks="all",
+        retries=3,
+        max_block_ms=10_000,
     )
-
-    log.info("Kafka producer connected → %s", settings.kafka.BOOTSTRAP_SERVERS)
+    log.info(f"Kafka producer connected → {settings.kafka.BOOTSTRAP_SERVERS}")
     return producer
 
 
-# ─── Stream Loop ──────────────────────────────────────────────────────────────
+def _produce_topic(
+    producer: KafkaProducer,
+    topic: str,
+    records: Generator[dict, None, None],
+    entity_name: str,
+) -> None:
+    """Produces records from a generator to a single Kafka topic."""
+    
+    sent = 0
+    errors = 0
+    log.info(f"[{entity_name}] Starting production → topic '{topic}'")
 
-def stream_records(producer: KafkaProducer, df) -> None:
-    """
-    Iterates over the joined DataFrame and streams records to Kafka.
-
-    Rate control: sends BATCH_SIZE messages then sleeps SLEEP_INTERVAL seconds.
-    Default: 50 msgs / 0.1s = ~500 msgs/sec.
-
-    Checks get_running() before every batch — exits cleanly on SIGINT/SIGTERM.
-
-    Args:
-        producer: An active KafkaProducer instance.
-        df:       Joined business+review DataFrame from build_joined_dataset().
-    """
-    total_sent: int = 0
-    total_rows: int = len(df)
-
-    log.info(
-        "Stream starting → topic '%s' | records: %s | batch: %s | "
-        "sleep: %ss | target: ~%s msgs/sec",
-        settings.kafka.TOPIC,
-        f"{total_rows:,}",
-        settings.kafka.BATCH_SIZE,
-        settings.kafka.SLEEP_INTERVAL,
-        int(settings.kafka.BATCH_SIZE / settings.kafka.SLEEP_INTERVAL),
-    )
-
-    for batch_start in range(0, total_rows, settings.kafka.BATCH_SIZE):
+    for record in records:
         if not get_running():
-            log.info("Shutdown flag detected — exiting stream loop.")
+            log.info(f"[{entity_name}] Shutdown flag detected — stopping.")
             break
 
-        batch = df.iloc[batch_start : batch_start + settings.kafka.BATCH_SIZE]
-        log.debug("Dispatching batch starting at row %s.", batch_start)
+        try:
+            key = record.get("business_id", "").encode("utf-8")
+            value = json.dumps(record, default=str).encode("utf-8")
+            producer.send(topic, key=key, value=value)
+            sent += 1
 
-        for _, row in batch.iterrows():
-            if not get_running():
-                break
-            try:
-                producer.send(settings.kafka.TOPIC, value=row_to_message(row))
-                total_sent += 1
+            if sent % settings.kafka.PROGRESS_INTERVAL == 0:
+                log.info(f"[{entity_name}] Progress: {sent:,} records sent.")
 
-                if total_sent % settings.kafka.PROGRESS_INTERVAL == 0:
-                    log.info(
-                        "Progress: %s / %s messages sent.",
-                        f"{total_sent:,}",
-                        f"{total_rows:,}",
-                    )
+        except Exception as exc:
+            errors += 1
+            log.warning(
+                f"[{entity_name}] Failed to send record "
+                f"(business_id={record.get('business_id', '?')}): {exc}"
+            )
 
-            except KafkaError as exc:
-                log.warning(
-                    "Failed to send message (review_id=%s): %s",
-                    row.get("review_id", "?"),
-                    exc,
-                )
+    log.info(f"[{entity_name}] Done — {sent:,} sent, {errors} errors.")
 
-        time.sleep(settings.kafka.SLEEP_INTERVAL)
-
-    log.debug("Flushing producer buffer...")
-    producer.flush()
-    log.info("Stream complete — total messages sent: %s", f"{total_sent:,}")
-
-
-# ─── Entry Point ──────────────────────────────────────────────────────────────
 
 def main() -> None:
-    """Registers shutdown handlers, loads data, and starts the stream."""
+    """Entry point: starts dual-topic threaded production."""
+    
     register_signal_handlers()
     log.info("Producer starting up...")
 
     try:
-        df = build_joined_dataset()
-    except (FileNotFoundError, ValueError) as exc:
-        log.critical("Failed to load dataset: %s", exc)
-        sys.exit(1)
-
-    try:
         producer = create_producer()
     except KafkaError as exc:
-        log.critical("Failed to connect to Kafka: %s", exc)
-        log.critical("Is Redpanda running? → docker compose up -d")
+        log.critical(f"Failed to connect to Kafka: {exc}")
         sys.exit(1)
 
+    biz_thread = threading.Thread(
+        target=_produce_topic,
+        args=(
+            producer,
+            settings.kafka.BUSINESS_TOPIC,
+            load_businesses(),
+            "businesses",
+        ),
+        daemon=True,
+        name="producer-businesses",
+    )
+    
+    review_thread = threading.Thread(
+        target=_produce_topic,
+        args=(
+            producer,
+            settings.kafka.REVIEW_TOPIC,
+            load_reviews(),
+            "reviews",
+        ),
+        daemon=True,
+        name="producer-reviews",
+    )
+
+    biz_thread.start()
+    review_thread.start()
+
+    log.info("Both producer threads started.")
+
     try:
-        stream_records(producer, df)
-    finally:
-        producer.close()
-        log.info("Producer closed cleanly.")
+        biz_thread.join()
+        review_thread.join()
+    except KeyboardInterrupt:
+        log.info("KeyboardInterrupt — waiting for threads to finish...")
+        biz_thread.join(timeout=5)
+        review_thread.join(timeout=5)
+
+    log.debug("Flushing producer buffer...")
+    producer.flush()
+    producer.close()
+    log.info("Producer closed cleanly.")
 
 
 if __name__ == "__main__":

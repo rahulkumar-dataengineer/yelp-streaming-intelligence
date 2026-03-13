@@ -1,146 +1,218 @@
 """
 Validation Script
 
-Tests connectivity to all three cloud services independently.
+Tests connectivity to all external services independently.
 Each test prints PASS or FAIL with a clear error message.
+
+Services tested:
+    1. Docker        — daemon is running
+    2. Redpanda      — Kafka broker reachable, topics accessible
+    3. BigQuery      — dataset exists, Load API available
+    4. Qdrant        — reachable on configured host:port
+    5. Gemini LLM    — generation call succeeds
+    6. Gemini Embed  — embedding call returns correct dimensions
 
 Usage:
     python -m tests.validate_connections
 """
 
-import os
+import subprocess
 import sys
+
 from config.settings import settings
 
 
-def _pass(service: str) -> None:
-    print(f"----- PASS ----- [{service}]")
+def _pass(service: str, detail: str = "") -> None:
+    msg = f"----- PASS ----- [{service}]"
+    if detail:
+        msg += f" {detail}"
+    print(msg)
+
 
 def _fail(service: str, error: str) -> None:
     print(f"xxxxx FAIL xxxxx [{service}] : {error}")
 
 
+# ── 1. Docker ──────────────────────────────────────────────────────────────
+
+def test_docker() -> bool:
+    """Verify Docker daemon is running."""
+    print("\n1. Testing Docker...")
+    try:
+        result = subprocess.run(
+            ["docker", "info"],
+            capture_output=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            _fail("Docker", "Docker daemon is not running. Start Docker Desktop.")
+            return False
+        _pass("Docker", "daemon is running")
+        return True
+    except FileNotFoundError:
+        _fail("Docker", "Docker CLI not found. Install Docker Desktop.")
+        return False
+    except subprocess.TimeoutExpired:
+        _fail("Docker", "Docker command timed out")
+        return False
+
+
+# ── 2. Redpanda / Kafka ───────────────────────────────────────────────────
+
+def test_redpanda() -> bool:
+    """Verify Kafka broker is reachable and list topics."""
+    print("\n2. Testing Redpanda (Kafka broker)...")
+    try:
+        from kafka import KafkaConsumer
+
+        consumer = KafkaConsumer(
+            bootstrap_servers=settings.kafka.BOOTSTRAP_SERVERS,
+            request_timeout_ms=5000,
+        )
+        topics = consumer.topics()
+        consumer.close()
+
+        print(f"   Broker: {settings.kafka.BOOTSTRAP_SERVERS}")
+        print(f"   Topics: {sorted(topics) if topics else '(none yet)'}")
+        _pass("Redpanda")
+        return True
+    except Exception as exc:
+        _fail("Redpanda", f"Cannot reach broker at {settings.kafka.BOOTSTRAP_SERVERS} — {exc}")
+        return False
+
+
+# ── 3. BigQuery ────────────────────────────────────────────────────────────
 
 def test_bigquery() -> bool:
-    print("\nTesting BigQuery connectivity......")
-
-    project_id = settings.gcp.PROJECT_ID
-    key_path = settings.gcp.GOOGLE_APPLICATION_CREDENTIALS
-
-    if not project_id:
-        _fail("BigQuery", "GCP_PROJECT_ID is not set in .env")
-        return False
-    if not key_path:
-        _fail("BigQuery", "GCP_SERVICE_ACCOUNT_KEY_PATH is not set in .env")
-        return False
-    if not os.path.exists(key_path):
-        _fail("BigQuery", f"Service account key file not found at: {key_path}")
-        return False
-
+    """Verify BigQuery connectivity and dataset existence."""
+    print("\n3. Testing BigQuery...")
     try:
         from google.cloud import bigquery
 
-        client = bigquery.Client(project=project_id)
-        datasets = list(client.list_datasets())
-        dataset_names = [d.dataset_id for d in datasets]
+        client = bigquery.Client(project=settings.gcp.PROJECT_ID)
 
-        print(f"Found {len(dataset_names)} dataset(s): {dataset_names}")
-        
+        # Check dataset exists
+        dataset_ref = f"{settings.gcp.PROJECT_ID}.{settings.gcp.BIGQUERY_DATASET}"
+        dataset = client.get_dataset(dataset_ref)
+        print(f"   Project:  {settings.gcp.PROJECT_ID}")
+        print(f"   Dataset:  {dataset.dataset_id}")
+        print(f"   Location: {dataset.location}")
+
+        # Verify query works
+        query = f"SELECT 1 AS test"
+        result = list(client.query(query).result())
+        print(f"   Query:    test query returned {result[0].test}")
+
         _pass("BigQuery")
         return True
-
     except Exception as exc:
         _fail("BigQuery", str(exc))
         return False
 
 
+# ── 4. Qdrant ──────────────────────────────────────────────────────────────
 
-def test_pinecone() -> bool:
-    print("\nTesting Pinecone connectivity......")
-    
-    api_key = settings.pinecone.API_KEY
-    index_name = settings.pinecone.INDEX_NAME
+def test_qdrant() -> bool:
+    """Verify Qdrant is reachable and list collections."""
+    print("\n4. Testing Qdrant...")
+    try:
+        from qdrant_client import QdrantClient
 
-    if not api_key:
-        _fail("Pinecone", "PINECONE_API_KEY is not set in .env")
+        client = QdrantClient(
+            host=settings.qdrant.HOST,
+            port=settings.qdrant.PORT,
+            timeout=5,
+        )
+        collections = client.get_collections().collections
+        collection_names = [c.name for c in collections]
+
+        print(f"   Host:        {settings.qdrant.HOST}:{settings.qdrant.PORT}")
+        print(f"   Collections: {collection_names if collection_names else '(none yet)'}")
+        _pass("Qdrant")
+        return True
+    except Exception as exc:
+        _fail("Qdrant", f"Cannot reach Qdrant at {settings.qdrant.HOST}:{settings.qdrant.PORT} — {exc}")
         return False
 
+
+# ── 5. Gemini LLM ─────────────────────────────────────────────────────────
+
+def test_gemini_llm() -> bool:
+    """Verify Gemini LLM generation works."""
+    print("\n5. Testing Gemini LLM...")
     try:
-        from pinecone import Pinecone
+        from google import genai
 
-        pc = Pinecone(api_key=api_key)
+        client = genai.Client(api_key=settings.gemini.API_KEY)
+        response = client.models.generate_content(
+            model=settings.gemini.MODEL,
+            contents="Reply with exactly one word: OK",
+        )
+        reply = response.text.strip()
 
-        # List all indexes to verify the connection
-        indexes = pc.list_indexes()
-        index_names = [idx.name for idx in indexes]
-        print(f"Available indexes: {index_names}")
+        print(f"   Model:    {settings.gemini.MODEL}")
+        print(f"   Response: '{reply}'")
+        _pass("Gemini LLM")
+        return True
+    except Exception as exc:
+        _fail("Gemini LLM", str(exc))
+        return False
 
-        if index_name not in index_names:
-            _fail(
-                "Pinecone",
-                f"Index '{index_name}' not found. "
-                f"Please create it at app.pinecone.io with 384 dims + cosine metric. "
-                f"Available indexes: {index_names}"
-            )
+
+# ── 6. Gemini Embedding ───────────────────────────────────────────────────
+
+def test_gemini_embedding() -> bool:
+    """Verify Gemini embedding works with correct dimensions."""
+    print("\n6. Testing Gemini Embedding...")
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=settings.gemini.API_KEY)
+        result = client.models.embed_content(
+            model=settings.gemini.EMBEDDING_MODEL,
+            contents="test embedding connectivity",
+            config=types.EmbedContentConfig(
+                output_dimensionality=settings.gemini.EMBEDDING_DIMENSIONS,
+                task_type="RETRIEVAL_DOCUMENT",
+            ),
+        )
+        dims = len(result.embeddings[0].values)
+
+        print(f"   Model:      {settings.gemini.EMBEDDING_MODEL}")
+        print(f"   Dimensions: {dims} (expected {settings.gemini.EMBEDDING_DIMENSIONS})")
+
+        if dims != settings.gemini.EMBEDDING_DIMENSIONS:
+            _fail("Gemini Embedding", f"Got {dims} dims, expected {settings.gemini.EMBEDDING_DIMENSIONS}")
             return False
 
-        # Connect to the specific index and fetch stats
-        index = pc.Index(index_name)
-        stats = index.describe_index_stats()
-        print(f"Index '{index_name}' stats: total_vector_count={stats.total_vector_count}, dimension={stats.dimension}")
-
-        _pass("Pinecone")
+        _pass("Gemini Embedding")
         return True
-
     except Exception as exc:
-        _fail("Pinecone", str(exc))
+        _fail("Gemini Embedding", str(exc))
         return False
 
 
-
-def test_gemini() -> bool:
-    print("\nTesting Gemini API connectivity......")
-    api_key = settings.gemini.API_KEY
-
-    if not api_key:
-        _fail("Gemini", "GEMINI_API_KEY is not set in .env")
-        return False
-
-    try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        from langchain_core.messages import HumanMessage
-
-        llm = ChatGoogleGenerativeAI(
-            model=settings.gemini.MODEL,
-            google_api_key=api_key,
-            temperature=0,
-            max_tokens=50,
-        )
-
-        response = llm.invoke([HumanMessage(content="Reply with exactly: CONNECTION_OK")])
-        reply = response.content.strip()
-        print(f"Gemini response: '{reply}'")
-
-        _pass("Gemini")
-        return True
-
-    except Exception as exc:
-        _fail("Gemini", str(exc))
-        return False
-
-
+# ── Main ───────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    """Runs all three connectivity tests and prints a summary."""
+    """Run all connectivity tests and print summary."""
     print("=" * 60)
-    print("  Yelp Hybrid Streaming Agentic Platform Connection Test")
+    print("  Yelp Streaming Intelligence — Connection Validation")
     print("=" * 60)
 
-    results = {
-        "BigQuery": test_bigquery(),
-        "Pinecone": test_pinecone(),
-        "Gemini":   test_gemini(),
-    }
+    tests = [
+        ("Docker", test_docker),
+        ("Redpanda", test_redpanda),
+        ("BigQuery", test_bigquery),
+        ("Qdrant", test_qdrant),
+        ("Gemini LLM", test_gemini_llm),
+        ("Gemini Embedding", test_gemini_embedding),
+    ]
+
+    results = {}
+    for name, test_fn in tests:
+        results[name] = test_fn()
 
     print("\n" + "=" * 60)
     print("  SUMMARY")
@@ -151,17 +223,17 @@ def main() -> None:
         if passed:
             _pass(service)
         else:
-            _fail(service, "See details above")
+            _fail(service, "see details above")
             all_passed = False
 
     if all_passed:
-        print("\n All services connected.")
-        sys.exit(0)
+        print("\nAll services connected.")
     else:
-        print("\n Fix the FAIL(s).")
-        sys.exit(1)
+        print("\nFix the FAIL(s) above before proceeding.")
 
     print("=" * 60)
+    sys.exit(0 if all_passed else 1)
+
 
 if __name__ == "__main__":
     main()

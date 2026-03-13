@@ -1,4 +1,15 @@
+"""
+Yelp data loaders
+
+- Businesses: json_normalize to flatten nested attributes.* and hours.* dicts matching the Bronze schema.
+- Reviews: chunked iterator (10K rows) to avoid loading ~7M rows into memory at once.
+"""
+
+import json
 import os
+from datetime import datetime, timezone
+from typing import Generator
+
 import pandas as pd
 
 from config.settings import settings
@@ -6,93 +17,67 @@ from utils.logger import Logger
 
 log = Logger.get(__name__)
 
+REVIEW_CHUNK_SIZE = 10_000
 
-def load_business_data() -> pd.DataFrame:
+
+def _clean_record(record: dict) -> dict:
+    """Replace pandas NaN/NaT values with None for JSON serialization."""
+
+    cleaned = {}
+    for k, v in record.items():
+        try:
+            cleaned[k] = None if pd.isna(v) else v
+        except Exception:
+            cleaned[k] = v
+    return cleaned
+
+
+def load_businesses() -> Generator[dict, None, None]:
+    """Loads Yelp businesses with flattened attributes.* and hours.* fields."""
+
     path = settings.yelp.BUSINESS_JSON_PATH
-    log.debug("Loading business data from: %s", path)
-
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"Business JSON not found at: {path} — "
             f"check YELP_BUSINESS_JSON_PATH in your .env file."
         )
+    log.info(f"Loading businesses from: {path}")
 
-    df = pd.read_json(path, lines=True)
-    log.debug("Business JSONs loaded into DataFrame — %s rows.", len(df))
+    with open(path) as f:
+        records = [json.loads(line) for line in f]
+    log.debug(f"Read {len(records):,} raw business records.")
 
-    required_cols = {"business_id", "name", "city", "state", "stars", "categories"}
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"Business dataset missing expected columns: {missing}")
+    timestamp = datetime.now(timezone.utc).isoformat()
+    count = 0
 
-    df = (
-        df[["business_id", "name", "city", "state", "stars", "categories"]]
-        .rename(columns={"stars": "business_stars"})
-    )
-    df["categories"] = df["categories"].fillna("")
-
-    log.info("Loaded %s businesses.", f"{len(df):,}")
-    return df
+    df_normalised = pd.json_normalize(records, sep=".")
+    for record in df_normalised.to_dict(orient="records"):
+        record = _clean_record(record)
+        record["ingestion_timestamp"] = timestamp
+        yield record
+        count += 1
+    log.info(f"Loaded {count:,} business records.")
 
 
-def load_review_data() -> pd.DataFrame:
-    """
-    Loads the Yelp review dataset and selects relevant columns.
-
-    Returns:
-        DataFrame with columns:
-            review_id, business_id, review_stars, review_text, review_date
-
-    Raises:
-        FileNotFoundError: If the file does not exist at the configured path.
-        ValueError: If required columns are missing from the dataset.
-    """
+def load_reviews() -> Generator[dict, None, None]:
+    """Loads Yelp reviews using a chunked iterator."""
+    
     path = settings.yelp.REVIEW_JSON_PATH
-    log.debug("Loading review data from: %s", path)
-
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"Review JSON not found at: {path} — "
             f"check YELP_REVIEW_JSON_PATH in your .env file."
         )
+    log.info(f"Loading reviews from: {path} (in batches, {REVIEW_CHUNK_SIZE:,} rows/batch)")
 
-    df = pd.read_json(path, lines=True)
-    log.debug("Review JSON read into DataFrame — %s rows.", len(df))
+    count = 0
+    chunks = pd.read_json(path, lines=True, chunksize=REVIEW_CHUNK_SIZE)
 
-    required_cols = {"review_id", "business_id", "stars", "text", "date"}
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"Review dataset missing expected columns: {missing}")
-
-    df = (
-        df[["review_id", "business_id", "stars", "text", "date"]]
-        .rename(columns={
-            "stars": "review_stars",
-            "text":  "review_text",
-            "date":  "review_date",
-        })
-    )
-    df["review_date"] = df["review_date"].astype(str)
-
-    log.info("Loaded %s reviews.", f"{len(df):,}")
-    return df
-
-
-def build_joined_dataset() -> pd.DataFrame:
-    """
-    Loads and inner-joins businesses and reviews on business_id.
-
-    Only reviews with a matching business record are included —
-    this guarantees every Kafka message has complete business context.
-
-    Returns:
-        Joined DataFrame ready for streaming.
-    """
-    businesses = load_business_data()
-    reviews    = load_review_data()
-
-    log.debug("Merging reviews and businesses on business_id (inner join)...")
-    joined = reviews.merge(businesses, on="business_id", how="inner")
-
-    log.info("Joined dataset ready — %s records.", f"{len(joined):,}")
-    return joined
+    for chunk in chunks:
+        timestamp = datetime.now(timezone.utc).isoformat()
+        for record in chunk.to_dict(orient="records"):
+            record = _clean_record(record)
+            record["ingestion_timestamp"] = timestamp
+            yield record
+            count += 1
+    log.info(f"Loaded {count:,} review records.")

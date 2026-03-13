@@ -41,3 +41,4 @@ checkpoint/
 exploration/*.txt
 claude.md
 /docs/
+/logs/

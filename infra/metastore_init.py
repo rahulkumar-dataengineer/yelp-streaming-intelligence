@@ -1,36 +1,27 @@
-"""Metastore initialisation — creates databases and tables."""
+"""Metastore initialisation — creates Yelp databases and tables."""
 
 from pyspark.sql import SparkSession
 
 from config.settings import settings
-from utils.logger import Logger
 from infra.hive_ddl import BRONZE_BUSINESSES_DDL, BRONZE_REVIEWS_DDL, SILVER_REVIEWS_DDL
-
-log = Logger.get(__name__)
+from platform_commons.infra.metastore import init_metastore as _init_metastore
 
 
 def init_metastore(spark: SparkSession) -> None:
-    """Creates Bronze, Silver, and Gold databases and registers all tables."""
-
-    for db in [
-        settings.hive.BRONZE_DB,
-        settings.hive.SILVER_DB,
-        settings.hive.GOLD_DB,
-    ]:
-        spark.sql(f"CREATE DATABASE IF NOT EXISTS {db}")
-        log.info(f"Database ensured: {db}")
-
-    tables = [
-        ("businesses", BRONZE_BUSINESSES_DDL, settings.hive.BRONZE_DB),
-        ("reviews", BRONZE_REVIEWS_DDL, settings.hive.BRONZE_DB),
-        ("reviews", SILVER_REVIEWS_DDL, settings.hive.SILVER_DB),
-    ]
-
-    for table_name, ddl_template, db in tables:
-        spark.sql(ddl_template.format(db=db))
-        log.info(f"Table ensured: {db}.{table_name}")
-
-    log.info("Metastore initialisation complete.")
+    """Creates Bronze, Silver, and Gold databases and registers all Yelp tables."""
+    _init_metastore(
+        spark=spark,
+        databases=[
+            settings.hive.BRONZE_DB,
+            settings.hive.SILVER_DB,
+            settings.hive.GOLD_DB,
+        ],
+        tables=[
+            (f"{settings.hive.BRONZE_DB}.businesses", BRONZE_BUSINESSES_DDL.format(db=settings.hive.BRONZE_DB)),
+            (f"{settings.hive.BRONZE_DB}.reviews", BRONZE_REVIEWS_DDL.format(db=settings.hive.BRONZE_DB)),
+            (f"{settings.hive.SILVER_DB}.reviews", SILVER_REVIEWS_DDL.format(db=settings.hive.SILVER_DB)),
+        ],
+    )
 
 
 if __name__ == "__main__":

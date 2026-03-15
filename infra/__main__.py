@@ -12,7 +12,7 @@ Execution order:
 
 from infra.metastore_init import init_metastore
 from infra.schema_registry import register_schemas
-from utils.logger import Logger
+from platform_commons.utils.logger import Logger
 from utils.spark_helpers import create_spark_session
 
 log = Logger.get(__name__)

@@ -16,8 +16,8 @@ from pyspark.sql.streaming import StreamingQuery
 
 from config.settings import settings
 from processing.schemas import BUSINESS_AVRO_JSON, BUSINESS_TABLE, REVIEW_AVRO_JSON, REVIEW_TABLE
-from utils.logger import Logger
-from utils.signals import register_signal_handlers
+from platform_commons.utils.logger import Logger
+from platform_commons.utils.signals import register_signal_handlers
 from utils.spark_helpers import (
     create_spark_session,
     run_until_shutdown,

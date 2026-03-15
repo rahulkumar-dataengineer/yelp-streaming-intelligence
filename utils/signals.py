@@ -1,19 +1,5 @@
-import signal
-from utils.logger import Logger
+"""Re-exports from platform_commons for backward-compatible imports."""
 
-log = Logger.get(__name__)
+from platform_commons.utils.signals import get_running, register_signal_handlers
 
-_running: bool = True
-
-def get_running() -> bool:
-    return _running
-
-def _handle_shutdown(signum: int, frame) -> None:
-    global _running
-    _running = False
-    log.info("Shutdown signal received (signal %s). Finishing current batch...", signum)
-
-def register_signal_handlers() -> None:
-    signal.signal(signal.SIGINT, _handle_shutdown)
-    signal.signal(signal.SIGTERM, _handle_shutdown)
-    log.debug("Signal handlers registered (SIGINT, SIGTERM).")
+__all__ = ["get_running", "register_signal_handlers"]

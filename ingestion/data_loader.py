@@ -9,7 +9,7 @@ import os
 from typing import Generator
 
 from config.settings import settings
-from utils.logger import Logger
+from platform_commons.utils.logger import Logger
 
 log = Logger.get(__name__)
 

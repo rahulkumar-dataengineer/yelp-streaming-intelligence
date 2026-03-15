@@ -28,8 +28,8 @@ from pyspark.sql.types import (
 
 from config.settings import settings
 from processing.schemas import SILVER_TABLE, Silver
-from utils.logger import Logger
-from utils.signals import register_signal_handlers
+from platform_commons.utils.logger import Logger
+from platform_commons.utils.signals import register_signal_handlers
 from utils.spark_helpers import (
     create_spark_session,
     read_table_stream,

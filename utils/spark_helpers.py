@@ -7,8 +7,8 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.streaming import StreamingQuery
 
 from config.settings import settings
-from utils.logger import Logger
-from utils.signals import get_running
+from platform_commons.utils.logger import Logger
+from platform_commons.utils.signals import get_running
 
 log = Logger.get(__name__)
 

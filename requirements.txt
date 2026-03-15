@@ -32,6 +32,9 @@ sqlalchemy-bigquery==1.12.0
 # Web API
 flask==3.1.0
 
+# Platform Commons (shared infrastructure)
+portfolio-platform-commons @ file:///Users/rahul/Learning/Coding/portfolio-platform-commons
+
 # Utilities
 python-dotenv==1.0.1
 requests==2.32.3

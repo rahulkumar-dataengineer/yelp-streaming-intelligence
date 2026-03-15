@@ -5,12 +5,15 @@ Tests connectivity to all external services independently.
 Each test prints PASS or FAIL with a clear error message.
 
 Services tested:
-    1. Docker        — daemon is running
-    2. Redpanda      — Kafka broker reachable, topics accessible
-    3. BigQuery      — dataset exists, Load API available
-    4. Qdrant        — reachable on configured host:port
-    5. Gemini LLM    — generation call succeeds
-    6. Gemini Embed  — embedding call returns correct dimensions
+    1. Docker           — daemon is running
+    2. Redpanda         — Kafka broker reachable, topics accessible
+    3. Schema Registry  — Redpanda schema registry reachable
+    4. PostgreSQL       — metastore backing store reachable
+    5. Hive Metastore   — Thrift service reachable, databases exist
+    6. BigQuery         — dataset exists, Load API available
+    7. Qdrant           — reachable on configured host:port
+    8. Gemini LLM       — generation call succeeds
+    9. Gemini Embed     — embedding call returns correct dimensions
 
 Usage:
     python -m tests.validate_connections
@@ -33,7 +36,7 @@ def _fail(service: str, error: str) -> None:
     print(f"xxxxx FAIL xxxxx [{service}] : {error}")
 
 
-# ── 1. Docker ──────────────────────────────────────────────────────────────
+#  1. Docker 
 
 def test_docker() -> bool:
     """Verify Docker daemon is running."""
@@ -57,20 +60,17 @@ def test_docker() -> bool:
         return False
 
 
-# ── 2. Redpanda / Kafka ───────────────────────────────────────────────────
+#  2. Redpanda / Kafka 
 
 def test_redpanda() -> bool:
     """Verify Kafka broker is reachable and list topics."""
     print("\n2. Testing Redpanda (Kafka broker)...")
     try:
-        from kafka import KafkaConsumer
+        from confluent_kafka.admin import AdminClient
 
-        consumer = KafkaConsumer(
-            bootstrap_servers=settings.kafka.BOOTSTRAP_SERVERS,
-            request_timeout_ms=5000,
-        )
-        topics = consumer.topics()
-        consumer.close()
+        admin = AdminClient({"bootstrap.servers": settings.kafka.BOOTSTRAP_SERVERS})
+        metadata = admin.list_topics(timeout=5)
+        topics = set(metadata.topics.keys())
 
         print(f"   Broker: {settings.kafka.BOOTSTRAP_SERVERS}")
         print(f"   Topics: {sorted(topics) if topics else '(none yet)'}")
@@ -81,11 +81,110 @@ def test_redpanda() -> bool:
         return False
 
 
-# ── 3. BigQuery ────────────────────────────────────────────────────────────
+#  3. Schema Registry
+
+def test_schema_registry() -> bool:
+    """Verify Redpanda schema registry is reachable."""
+    print("\n3. Testing Schema Registry...")
+    try:
+        import requests
+
+        url = f"{settings.kafka.SCHEMA_REGISTRY_URL}/subjects"
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        subjects = resp.json()
+
+        types_resp = requests.get(f"{settings.kafka.SCHEMA_REGISTRY_URL}/schemas/types", timeout=5)
+        supported_types = types_resp.json() if types_resp.ok else []
+
+        print(f"   URL:      {settings.kafka.SCHEMA_REGISTRY_URL}")
+        print(f"   Types:    {supported_types}")
+        print(f"   Subjects: {subjects if subjects else '(none yet — run producer)'}")
+        _pass("Schema Registry")
+        return True
+    except Exception as exc:
+        _fail("Schema Registry", f"Cannot reach registry at {settings.kafka.SCHEMA_REGISTRY_URL} — {exc}")
+        return False
+
+
+#  4. PostgreSQL (Metastore backing store)
+
+def test_postgresql() -> bool:
+    """Verify PostgreSQL is reachable via Docker."""
+    print("\n4. Testing PostgreSQL (metastore backing store)...")
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "metastore-db", "pg_isready", "-U", "hive", "-d", "hive_metastore"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            _fail("PostgreSQL", f"Not ready — {result.stderr.strip()}")
+            return False
+
+        print(f"   Container: metastore-db")
+        print(f"   Database:  hive_metastore")
+        print(f"   Status:    accepting connections")
+        _pass("PostgreSQL")
+        return True
+    except FileNotFoundError:
+        _fail("PostgreSQL", "Docker CLI not found")
+        return False
+    except subprocess.TimeoutExpired:
+        _fail("PostgreSQL", "Health check timed out")
+        return False
+    except Exception as exc:
+        _fail("PostgreSQL", str(exc))
+        return False
+
+
+#  5. Hive Metastore
+
+def test_hive_metastore() -> bool:
+    """Verify Hive Metastore Thrift service is reachable and databases exist."""
+    print("\n5. Testing Hive Metastore...")
+    try:
+        from pyspark.sql import SparkSession
+
+        spark = (
+            SparkSession.builder
+            .appName("MetastoreValidation")
+            .master("local[1]")
+            .config("spark.sql.catalogImplementation", "hive")
+            .config("hive.metastore.uris", settings.hive.METASTORE_URI)
+            .config("spark.sql.warehouse.dir", settings.hive.WAREHOUSE_DIR)
+            .config("spark.driver.memory", "512m")
+            .config("spark.ui.enabled", "false")
+            .enableHiveSupport()
+            .getOrCreate()
+        )
+        spark.sparkContext.setLogLevel("ERROR")
+
+        databases = [row.namespace for row in spark.sql("SHOW DATABASES").collect()]
+        tables = []
+        for db in [settings.hive.BRONZE_DB, settings.hive.SILVER_DB, settings.hive.GOLD_DB]:
+            if db in databases:
+                db_tables = [row.tableName for row in spark.sql(f"SHOW TABLES IN {db}").collect()]
+                tables.extend([f"{db}.{t}" for t in db_tables])
+
+        spark.stop()
+
+        print(f"   URI:       {settings.hive.METASTORE_URI}")
+        print(f"   Databases: {sorted(databases)}")
+        print(f"   Tables:    {sorted(tables) if tables else '(none yet — run: python -m infra)'}")
+        _pass("Hive Metastore")
+        return True
+    except Exception as exc:
+        _fail("Hive Metastore", f"Cannot reach metastore at {settings.hive.METASTORE_URI} — {exc}")
+        return False
+
+
+#  6. BigQuery
 
 def test_bigquery() -> bool:
     """Verify BigQuery connectivity and dataset existence."""
-    print("\n3. Testing BigQuery...")
+    print("\n6. Testing BigQuery...")
     try:
         from google.cloud import bigquery
 
@@ -110,11 +209,11 @@ def test_bigquery() -> bool:
         return False
 
 
-# ── 4. Qdrant ──────────────────────────────────────────────────────────────
+#  7. Qdrant
 
 def test_qdrant() -> bool:
     """Verify Qdrant is reachable and list collections."""
-    print("\n4. Testing Qdrant...")
+    print("\n7. Testing Qdrant...")
     try:
         from qdrant_client import QdrantClient
 
@@ -135,11 +234,11 @@ def test_qdrant() -> bool:
         return False
 
 
-# ── 5. Gemini LLM ─────────────────────────────────────────────────────────
+#  8. Gemini LLM
 
 def test_gemini_llm() -> bool:
     """Verify Gemini LLM generation works."""
-    print("\n5. Testing Gemini LLM...")
+    print("\n8. Testing Gemini LLM...")
     try:
         from google import genai
 
@@ -159,11 +258,11 @@ def test_gemini_llm() -> bool:
         return False
 
 
-# ── 6. Gemini Embedding ───────────────────────────────────────────────────
+#  9. Gemini Embedding
 
 def test_gemini_embedding() -> bool:
     """Verify Gemini embedding works with correct dimensions."""
-    print("\n6. Testing Gemini Embedding...")
+    print("\n9. Testing Gemini Embedding...")
     try:
         from google import genai
         from google.genai import types
@@ -193,7 +292,7 @@ def test_gemini_embedding() -> bool:
         return False
 
 
-# ── Main ───────────────────────────────────────────────────────────────────
+#  Main 
 
 def main() -> None:
     """Run all connectivity tests and print summary."""
@@ -204,6 +303,9 @@ def main() -> None:
     tests = [
         ("Docker", test_docker),
         ("Redpanda", test_redpanda),
+        ("Schema Registry", test_schema_registry),
+        ("PostgreSQL", test_postgresql),
+        ("Hive Metastore", test_hive_metastore),
         ("BigQuery", test_bigquery),
         ("Qdrant", test_qdrant),
         ("Gemini LLM", test_gemini_llm),

@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "YelpReview",
+  "namespace": "com.yelp.streaming",
+  "fields": [
+    {"name": "review_id", "type": ["null", "string"], "default": null},
+    {"name": "user_id", "type": ["null", "string"], "default": null},
+    {"name": "business_id", "type": ["null", "string"], "default": null},
+    {"name": "stars", "type": ["null", "string"], "default": null},
+    {"name": "useful", "type": ["null", "string"], "default": null},
+    {"name": "funny", "type": ["null", "string"], "default": null},
+    {"name": "cool", "type": ["null", "string"], "default": null},
+    {"name": "text", "type": ["null", "string"], "default": null},
+    {"name": "date", "type": ["null", "string"], "default": null}
+  ]
+}

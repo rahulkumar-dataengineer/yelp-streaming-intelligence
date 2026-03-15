@@ -21,6 +21,7 @@ def _optional(key: str, default: str) -> str:
 class GCPSettings:
     PROJECT_ID: str = _require("GCP_PROJECT_ID")
     BIGQUERY_DATASET: str = _require("GCP_BIGQUERY_DATASET")
+    BIGQUERY_TABLE: str = _optional("GCP_BIGQUERY_TABLE", "gold_reviews")
     GOOGLE_APPLICATION_CREDENTIALS: str = _require("GOOGLE_APPLICATION_CREDENTIALS")
 
 
@@ -44,9 +45,27 @@ class YelpSettings:
 
 class KafkaSettings:
     BOOTSTRAP_SERVERS: str = _optional("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    SCHEMA_REGISTRY_URL: str = _optional("SCHEMA_REGISTRY_URL", "http://localhost:8081")
     BUSINESS_TOPIC: str = _optional("KAFKA_BUSINESS_TOPIC", "yelp_businesses")
     REVIEW_TOPIC: str = _optional("KAFKA_REVIEW_TOPIC", "yelp_reviews")
     PROGRESS_INTERVAL: int = 10_000
+
+class HiveSettings:
+    METASTORE_URI: str = _optional("HIVE_METASTORE_URI", "thrift://localhost:9083")
+    WAREHOUSE_DIR: str = _optional("HIVE_WAREHOUSE_DIR", "/tmp/spark-warehouse")
+    BRONZE_DB: str = "bronze"
+    SILVER_DB: str = "silver"
+    GOLD_DB: str = "gold"
+
+
+class SparkSettings:
+    KAFKA_PACKAGE: str = "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.4"
+    AVRO_PACKAGE: str = "org.apache.spark:spark-avro_2.12:3.5.4"
+
+    BRONZE_BUSINESS_CHECKPOINT: str = _optional("BRONZE_BUSINESS_CHECKPOINT", "checkpoints/bronze/businesses")
+    BRONZE_REVIEW_CHECKPOINT: str = _optional("BRONZE_REVIEW_CHECKPOINT", "checkpoints/bronze/reviews")
+    SILVER_CHECKPOINT: str = _optional("SILVER_CHECKPOINT", "checkpoints/silver")
+
 
 class Settings:
     gcp    = GCPSettings()
@@ -54,5 +73,7 @@ class Settings:
     gemini = GeminiSettings()
     yelp   = YelpSettings()
     kafka  = KafkaSettings()
+    hive   = HiveSettings()
+    spark  = SparkSettings()
 
 settings = Settings()

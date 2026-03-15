@@ -28,6 +28,8 @@ derby.log
 metastore_db/
 spark-warehouse/
 checkpoint/
+checkpoints/
+output/
 
 
 .vscode/

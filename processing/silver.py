@@ -27,7 +27,7 @@ from pyspark.sql.types import (
 )
 
 from config.settings import settings
-from processing.schemas import SILVER_TABLE, Silver
+from processing.schemas import BUSINESS_TABLE, REVIEW_TABLE, SILVER_TABLE, Silver
 from platform_commons.logger import Logger
 from platform_commons.kafka import register_signal_handlers
 from utils.spark_helpers import (
@@ -39,6 +39,10 @@ from utils.spark_helpers import (
 
 log = Logger.get(__name__)
 
+
+BRONZE_DB: str = settings.hive.BRONZE_DB
+SILVER_DB: str = settings.hive.SILVER_DB
+SILVER_CHECKPOINT: str = settings.spark.SILVER_CHECKPOINT
 
 WATERMARK_DELAY: str = "24 hours"
 MAX_FILES_PER_TRIGGER: int = 5
@@ -167,23 +171,23 @@ _HOURS_MAP: list[tuple[str, str]] = [
 ]
 
 
-# ──────────────────────────────────
+# ------------------------
 # Stream builders
-# ──────────────────────────────────
+# ------------------------
 
 def _build_business_stream(spark: SparkSession) -> DataFrame:
     """Reads Bronze business table from metastore and applies all cleaning transforms."""
 
     df: DataFrame = read_table_stream(
         spark,
-        f"{settings.hive.BRONZE_DB}.businesses",
+        f"{BRONZE_DB}.{BUSINESS_TABLE}",
         MAX_FILES_PER_TRIGGER,
     )
 
     # Cast ingestion_timestamp for watermarking
     df = df.withColumn("ingestion_timestamp", col("ingestion_timestamp").cast(TimestampType()))
 
-    # ── Top-level field casts ──
+
     df = df.withColumn(Silver.BUSINESS_STARS, col("stars").cast(FloatType()))
     df = df.withColumn("review_count", col("review_count").cast(IntegerType()))
     df = df.withColumn(
@@ -193,34 +197,51 @@ def _build_business_stream(spark: SparkSession) -> DataFrame:
         .otherwise(lit(None).cast(BooleanType())),
     )
 
-    # ── Boolean attributes (20) ──
+    # Boolean attributes
     for bronze_col, silver_col in _BOOLEAN_ATTR_MAP:
         df = df.withColumn(silver_col, _clean_boolean(bronze_col))
 
-    # ── BusinessParking → 5 booleans ──
-    df = df.withColumn("_parking", _parse_bool_dict(col("attributes_BusinessParking"), col("business_id"), lit("attributes_BusinessParking")))
+    # BusinessParking
+    df = df.withColumn(
+        "_parking",
+        _parse_bool_dict(
+            col("attributes_BusinessParking"),
+            col("business_id"),
+            lit("attributes_BusinessParking"),
+        ),
+    )
     for dict_key, silver_col in _PARKING_KEY_MAP:
         df = df.withColumn(silver_col, col("_parking")[dict_key])
     df = df.drop("_parking")
 
-    # ── Music → 7 booleans ──
-    df = df.withColumn("_music", _parse_bool_dict(col("attributes_Music"), col("business_id"), lit("attributes_Music")))
+    #  Music - 7 booleans 
+    df = df.withColumn(
+        "_music",
+        _parse_bool_dict(
+            col("attributes_Music"),
+            col("business_id"),
+            lit("attributes_Music"),
+        ),
+    )
     for dict_key, silver_col in _MUSIC_KEY_MAP:
         df = df.withColumn(silver_col, col("_music")[dict_key])
     df = df.drop("_music")
 
-    # ── String attributes (5) ──
+    #  String attributes (5) 
     for bronze_col, silver_col in _STRING_ATTR_MAP:
-        df = df.withColumn(silver_col, _parse_string_literal(col(bronze_col), col("business_id"), lit(bronze_col)))
+        df = df.withColumn(
+            silver_col,
+            _parse_string_literal(col(bronze_col), col("business_id"), lit(bronze_col)),
+        )
 
-    # ── RestaurantsPriceRange2 → IntegerType ──
+    #  RestaurantsPriceRange2 → IntegerType 
     df = df.withColumn(
         Silver.RESTAURANTS_PRICE_RANGE,
         when(col("attributes_RestaurantsPriceRange2") == "None", lit(None).cast(IntegerType()))
         .otherwise(col("attributes_RestaurantsPriceRange2").cast(IntegerType())),
     )
 
-    # ── Hours (7) — replace "0:0-0:0" with null ──
+    #  Hours (7) — replace "0:0-0:0" with null 
     for bronze_col, silver_col in _HOURS_MAP:
         df = df.withColumn(silver_col, _clean_hours(bronze_col))
 
@@ -236,17 +257,24 @@ def _build_business_stream(spark: SparkSession) -> DataFrame:
         col("review_count"),
         col("is_open"),
         col("categories"),
+        
         # 20 boolean attrs
         *[col(silver_col) for _, silver_col in _BOOLEAN_ATTR_MAP],
+        
         # 5 parking
         *[col(silver_col) for _, silver_col in _PARKING_KEY_MAP],
+        
         # 7 music
         *[col(silver_col) for _, silver_col in _MUSIC_KEY_MAP],
+        
         # 5 string attrs + 1 integer attr
         *[col(silver_col) for _, silver_col in _STRING_ATTR_MAP],
+        
         col(Silver.RESTAURANTS_PRICE_RANGE),
+        
         # 7 hours
         *[col(silver_col) for _, silver_col in _HOURS_MAP],
+        
         # metadata
         col("ingestion_timestamp"),
     ]
@@ -261,7 +289,7 @@ def _build_review_stream(spark: SparkSession) -> DataFrame:
 
     df: DataFrame = read_table_stream(
         spark,
-        f"{settings.hive.BRONZE_DB}.reviews",
+        f"{BRONZE_DB}.{REVIEW_TABLE}",
         MAX_FILES_PER_TRIGGER,
     )
 
@@ -293,9 +321,9 @@ def _build_review_stream(spark: SparkSession) -> DataFrame:
     return df
 
 
-# ──────────────────────────────────
+# ------------------------
 # Main
-# ──────────────────────────────────
+# ------------------------
 
 def main() -> None:
     """Joins business and review streams, writes cleaned Silver table."""
@@ -325,6 +353,7 @@ def main() -> None:
 
         # Resolve column conflicts and build Silver output
         silver_df: DataFrame = joined.select(
+            
             # Business fields
             col("biz.business_id").alias("business_id"),
             col("biz.name"),
@@ -336,17 +365,23 @@ def main() -> None:
             col("biz.review_count"),
             col("biz.is_open"),
             col("biz.categories"),
+            
             # 20 boolean attrs
             *[col(f"biz.{silver_col}") for _, silver_col in _BOOLEAN_ATTR_MAP],
+            
             # 5 parking
             *[col(f"biz.{silver_col}") for _, silver_col in _PARKING_KEY_MAP],
+            
             # 7 music
             *[col(f"biz.{silver_col}") for _, silver_col in _MUSIC_KEY_MAP],
+            
             # 5 string attrs + 1 integer attr
             *[col(f"biz.{silver_col}") for _, silver_col in _STRING_ATTR_MAP],
             col(f"biz.{Silver.RESTAURANTS_PRICE_RANGE}"),
+            
             # 7 hours
             *[col(f"biz.{silver_col}") for _, silver_col in _HOURS_MAP],
+            
             # Review fields
             col("rev.review_id"),
             col("rev.user_id"),
@@ -356,9 +391,9 @@ def main() -> None:
             col("rev.cool"),
             col("rev.text"),
             col("rev.date"),
+            
             # Metadata: take the later timestamp from both sides
-            greatest(col("biz.ingestion_timestamp"), col("rev.ingestion_timestamp"))
-            .alias("ingestion_timestamp"),
+            greatest(col("biz.ingestion_timestamp"), col("rev.ingestion_timestamp")).alias("ingestion_timestamp"),
             to_date(
                 greatest(col("biz.ingestion_timestamp"), col("rev.ingestion_timestamp"))
             ).alias("ingestion_date"),
@@ -366,12 +401,12 @@ def main() -> None:
 
         log.info(f"Silver DataFrame columns: {len(silver_df.columns)}")
 
-        silver_table = f"{settings.hive.SILVER_DB}.{SILVER_TABLE}"
+        silver_table = f"{SILVER_DB}.{SILVER_TABLE}"
         query = start_table_sink(
             df=silver_df,
             query_name="silver_joined",
             table_name=silver_table,
-            checkpoint_path=settings.spark.SILVER_CHECKPOINT,
+            checkpoint_path=SILVER_CHECKPOINT,
             partition_cols=["state", "ingestion_date"],
         )
 

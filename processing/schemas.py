@@ -1,13 +1,5 @@
 """
-Processing layer schemas — data engineer's own definitions.
-
-Defines table names, Silver field constants, Gold sink field selections,
-and Avro JSON strings for Bronze deserialization. Independent of infra —
-the data engineer defines what they need based on the documented table contracts.
-
-Avro schemas are imported from the schemas package (the enterprise equivalent
-of a versioned schema artifact from Artifactory/private PyPI). PySpark's
-from_avro() requires the schema as a JSON string, so we convert here.
+Processing layer schemas
 """
 
 import json
@@ -15,34 +7,21 @@ import json
 from schemas import BUSINESS_AVRO_SCHEMA, REVIEW_AVRO_SCHEMA
 
 
-# ──────────────────────────────────────
-# Bronze — Avro JSON strings for from_avro()
-# ──────────────────────────────────────
+# ------------------------
+# Bronze — Avro JSON strings
+# ------------------------
 
 BUSINESS_AVRO_JSON: str = json.dumps(BUSINESS_AVRO_SCHEMA)
 REVIEW_AVRO_JSON: str = json.dumps(REVIEW_AVRO_SCHEMA)
-
-
-# ──────────────────────────────────────
-# Table names
-# ──────────────────────────────────────
 
 BUSINESS_TABLE: str = "businesses"
 REVIEW_TABLE: str = "reviews"
 SILVER_TABLE: str = "reviews"
 
 
-# ──────────────────────────────────────
-# Metadata columns (added by Bronze)
-# ──────────────────────────────────────
-
-INGESTION_TIMESTAMP: str = "ingestion_timestamp"
-INGESTION_DATE: str = "ingestion_date"
-
-
-# ──────────────────────────────────────
+# ------------------------
 # Silver — cleaned/renamed field names
-# ──────────────────────────────────────
+# ------------------------
 
 class Silver:
     """Field name constants for the Silver joined table."""
@@ -109,9 +88,9 @@ class Silver:
     HOURS_SUNDAY: str = "hours_sunday"
 
 
-# ──────────────────────────────────────
+# ------------------------
 # Gold — sink field selections
-# ──────────────────────────────────────
+# ------------------------
 
 class Gold:
     """Field selections for BigQuery (SQL analytics) and Qdrant (vector search)."""

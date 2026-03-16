@@ -22,7 +22,7 @@ Usage:
 import sys
 
 from config.settings import settings
-from platform_commons.testing.validators import (
+from platform_commons.preflight.validators import (
     _fail,
     _pass,
     run_all,

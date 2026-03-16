@@ -44,3 +44,4 @@ exploration/*.txt
 claude.md
 /docs/
 /logs/
+.claude/

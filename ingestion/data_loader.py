@@ -9,7 +9,7 @@ import os
 from typing import Generator
 
 from config.settings import settings
-from platform_commons.utils.logger import Logger
+from platform_commons.logger import Logger
 
 log = Logger.get(__name__)
 
@@ -41,14 +41,14 @@ def _flatten(record: dict, sep: str = "_") -> dict:
 
 
 def _clean_record(record: dict) -> dict:
-    """Replace None-like values (NaN, empty strings) with None for JSON serialization."""
+    """Coerce all values to str (Avro schema is all-STRING), NaN/empty → None."""
 
     cleaned = {}
     for k, v in record.items():
         if v is None or v == "" or (isinstance(v, float) and v != v):
             cleaned[k] = None
         else:
-            cleaned[k] = v
+            cleaned[k] = str(v)
     return cleaned
 
 

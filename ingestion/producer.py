@@ -10,9 +10,9 @@ from confluent_kafka import KafkaException
 
 from config.settings import settings
 from ingestion.data_loader import load_businesses, load_reviews
-from platform_commons.ingestion.producer import create_producer, produce_topic
-from platform_commons.utils.logger import Logger
-from platform_commons.utils.signals import register_signal_handlers
+from platform_commons.kafka import create_producer, produce_topic
+from platform_commons.logger import Logger
+from platform_commons.kafka import register_signal_handlers
 from schemas import BUSINESS_AVRO_SCHEMA, REVIEW_AVRO_SCHEMA
 
 log = Logger.get(__name__)

@@ -185,14 +185,38 @@ Two services on a shared Docker network:
   - `CORS_ORIGIN` (Firebase domain in prod)
 - Depends on: `qdrant`
 
-### Qdrant Migration (one-time)
+### Qdrant Migration (one-time, on GCP VM)
 
-The existing standalone Qdrant container must be stopped and replaced with the compose-managed one. Steps:
-1. Stop existing container: `docker stop qdrant`
-2. Identify the existing volume/bind mount for Qdrant data
-3. Map the same data path in the compose volume definition
-4. `docker compose up -d` — Qdrant starts with existing data intact
-5. Verify: `curl http://localhost:6333/collections` confirms `yelp_reviews` collection is present
+The existing standalone Qdrant container on the VM must be stopped and replaced with the compose-managed one. This is a manual step performed via SSH — Claude Code cannot access the VM directly.
+
+**Instructions for the user:**
+```bash
+# 1. SSH into the VM
+gcloud compute ssh <your-vm-name> --zone=<zone>
+
+# 2. Check how Qdrant data is currently stored
+docker inspect qdrant | grep -A 10 Mounts
+
+# 3. Note the source path (e.g., /home/user/qdrant_storage or a named volume)
+#    You'll need this for the docker-compose volume definition
+
+# 4. Stop and remove the standalone container (data persists on disk)
+docker stop qdrant && docker rm qdrant
+
+# 5. Copy the docker-compose.yml and Dockerfile to the VM
+#    (scp, git clone, or paste — whatever works)
+
+# 6. Update the compose volume to point to the same data path from step 3
+
+# 7. Start both services
+docker compose up -d
+
+# 8. Verify Qdrant data survived
+curl http://localhost:6333/collections
+# Should show yelp_reviews collection with existing vectors
+```
+
+The implementation plan will produce the `docker-compose.yml` — the user handles the VM-side migration.
 
 ### RAM Budget
 

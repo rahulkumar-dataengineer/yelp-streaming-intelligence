@@ -16,6 +16,8 @@ START → Router → ┬─ SQL ────→ SQL Agent ───────�
 
 ## Modules
 
+**Package:** `agents/__init__.py` required for package imports (e.g., `from agents.router import classify` in `graph.py`).
+
 ### 1. `agents/state.py` — AgentState
 
 TypedDict that flows through every node. Nodes read what they need, write their output.
@@ -28,6 +30,7 @@ class AgentState(TypedDict):
     sql_result: str                 # Formatted query results
     sql_business_ids: list[str]     # HYBRID: passed to vector agent
     vector_results: list[dict]      # Top-K matches with payload + scores
+    error: str                      # Error message if an agent fails
     answer: str                     # Final natural language answer
 ```
 
@@ -36,6 +39,7 @@ class AgentState(TypedDict):
 - **SQL:** router sets `route="SQL"` → sql_agent fills `sql_query` + `sql_result` → synthesizer reads `sql_result`, produces `answer`
 - **VECTOR:** router sets `route="VECTOR"` → vector_agent fills `vector_results` → synthesizer reads `vector_results`, produces `answer`
 - **HYBRID:** router sets `route="HYBRID"` → sql_agent fills `sql_result` + `sql_business_ids` → vector_agent reads `sql_business_ids` as Qdrant filter, fills `vector_results` → synthesizer reads both, produces `answer`
+- **Error flow:** If any agent fails, it sets `error` with a brief message. The synthesizer checks `error` first — distinguishes "no results found" from "agent encountered a temporary issue, please try again."
 
 ### 2. `agents/router.py` — Query Classifier
 
@@ -63,16 +67,18 @@ ReAct-style agent using LangChain's SQL toolkit. Most autonomous node — LLM re
 
 - `SQLDatabase` wraps SQLAlchemy engine via `sqlalchemy-bigquery` dialect
 - Points to deduped view (`gold_reviews_deduped`) only — avoids duplicates inflating aggregations
-- `SQLDatabaseToolkit` provides tools: `sql_db_list_tables`, `sql_db_schema`, `sql_db_query`
+- **Critical:** `SQLDatabase` must be initialized with `view_support=True` since `gold_reviews_deduped` is a view, not a table. Without this, LangChain's `get_table_names()` won't find it and raises `ValueError`.
+- `SQLDatabaseToolkit` provides tools: `sql_db_list_tables`, `sql_db_schema`, `sql_db_query`, `sql_db_query_checker` (validates SQL before execution — useful safety layer for 7M rows)
 - Agent created via `create_sql_agent()` with Gemini LLM
+- **Import:** `from langchain_community.agent_toolkits.sql.base import create_sql_agent` — returns a legacy `AgentExecutor`. Call via `.invoke({"input": query})`. If this causes issues during implementation, fall back to building the agent manually with SQL toolkit tools directly.
 
 **Guardrails (7M rows):**
 
-- **View-only:** `SQLDatabase` initialized with `include_tables=["gold_reviews_deduped"]`
+- **View-only:** `SQLDatabase` initialized with `include_tables=["gold_reviews_deduped"]` and `view_support=True`
 - **Row limit:** System prompt requires `LIMIT 50` on all queries unless explicitly asked for more
 - **Column selection:** System prompt forbids `SELECT *` — only select columns relevant to the question
-- **Cost awareness:** System prompt states table has ~7M rows, emphasizes `WHERE` clauses and aggregations over raw row returns
-- **HYBRID behavior:** When `route == "HYBRID"`, system prompt instructs the agent to include `business_id` in SELECT and extract IDs into `sql_business_ids`. Safety net: `LIMIT 1000` on HYBRID queries to avoid passing millions of IDs to Qdrant
+- **Cost awareness:** System prompt states table has ~7M rows, emphasizes `WHERE` clauses and aggregations over raw row returns. Note: the deduped view forces a full table scan. With 1TB/month free query quota, budget approximately 200-500 queries/month depending on column selection. Sufficient for portfolio traffic.
+- **HYBRID behavior:** When `route == "HYBRID"`, system prompt instructs the agent to include `business_id` in SELECT and extract IDs into `sql_business_ids`. Safety net: `LIMIT 200` on HYBRID queries to keep Qdrant `MatchAny` filter performant on `on_disk=True` storage. The SQL agent's `WHERE` clause should narrow naturally, but the limit prevents accidental blowup.
 
 ### 4. `agents/vector_agent.py` — Qdrant Semantic Search
 
@@ -88,9 +94,12 @@ Function-based node (not ReAct). Steps are always the same: extract filters, emb
 - LLM returns JSON like `{"city": "Phoenix", "categories": "Italian", "restaurants_price_range": 2}`
 - If HYBRID: skips LLM extraction, uses `sql_business_ids` as sole Qdrant filter (SQL already filtered)
 
+**Retry strategy:** Both the filter-extraction LLM call and the embedding call use `tenacity` with exponential backoff (matching the gold layer's `GeminiEmbedder` pattern) for 429/5xx errors.
+
 **Phase 2 — Qdrant search:**
 
-- Embed query using `gemini-embedding-001` with `task_type=RETRIEVAL_QUERY` and `output_dimensionality=768`
+- Embed query using `google-genai` SDK directly (`from google import genai`) — matches the gold layer's `GeminiEmbedder` pattern and authentication path via `settings.gemini.API_KEY`. Do NOT use `langchain-google-genai` embeddings here.
+- `task_type=RETRIEVAL_QUERY` and `output_dimensionality=768`
 - Build Qdrant `Filter` from extracted fields (or `business_id` IN list for HYBRID)
 - `client.search()` with `limit=10`
 - Return results as list of dicts: `{name, city, state, categories, review_stars, business_stars, text, score}`
@@ -107,7 +116,7 @@ Function-based node (not ReAct). Steps are always the same: extract filters, emb
 
 Single Gemini call turning raw agent outputs into a conversational answer.
 
-**Input:** `query`, `route`, `sql_query`, `sql_result`, `vector_results`
+**Input:** `query`, `route`, `sql_query`, `sql_result`, `vector_results`, `error`
 **Output:** `answer`
 
 - System prompt: "You are a Yelp restaurant expert. Synthesize the retrieved data into a helpful, conversational answer."
@@ -123,8 +132,9 @@ Single Gemini call turning raw agent outputs into a conversational answer.
 
 **Edge cases:**
 
-- Empty `sql_result`: "I couldn't find data matching that query"
-- Empty `vector_results`: honest "no results" response
+- `error` is set: synthesizer returns a user-friendly error message (e.g., "I encountered a temporary issue, please try again") — distinguishes from "no results"
+- Empty `sql_result` (no error): "I couldn't find data matching that query"
+- Empty `vector_results` (no error): honest "no results" response
 - Both empty (HYBRID both failed): graceful fallback message
 
 ### 6. `graph.py` — LangGraph StateGraph
@@ -188,7 +198,7 @@ The `gold_reviews_deduped` view uses `ROW_NUMBER() OVER (PARTITION BY review_id 
 
 ### HYBRID business_id safety net
 
-With 7M rows, an unfiltered `SELECT DISTINCT business_id` could return hundreds of thousands of IDs. The `LIMIT 1000` safety net keeps Qdrant filter size manageable. The SQL agent's `WHERE` clause should narrow this naturally, but the limit prevents accidental blowup.
+With 7M rows, an unfiltered `SELECT DISTINCT business_id` could return hundreds of thousands of IDs. The `LIMIT 200` safety net keeps Qdrant `MatchAny` filter performant on `on_disk=True` storage. The SQL agent's `WHERE` clause should narrow this naturally, but the limit prevents accidental blowup.
 
 ## Dependencies
 

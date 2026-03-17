@@ -106,7 +106,7 @@ Function-based node (not ReAct). Steps are always the same: extract filters, emb
 
 **Filter matching:**
 
-- `city`, `state`: exact match (case-insensitive)
+- `city`, `state`: exact match (Qdrant stores original casing from silver layer; LLM filter extraction produces matching casing)
 - `categories`: substring match via Qdrant `MatchText` (categories is comma-separated, e.g., "Restaurants, Italian, Pizza")
 - `restaurants_price_range`: exact numeric match
 - `noise_level`, `alcohol`, `wifi`: exact string match

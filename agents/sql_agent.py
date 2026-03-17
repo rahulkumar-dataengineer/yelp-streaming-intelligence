@@ -4,12 +4,25 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits.sql.base import create_sql_agent
 from sqlalchemy import create_engine, text
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from agents.state import AgentState
 from config.settings import settings
 from platform_commons.logger import Logger
 
 log = Logger.get(__name__)
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Returns True for HTTP 429 and 5xx errors."""
+    exc_str = str(exc).lower()
+    return "429" in exc_str or "500" in exc_str or "503" in exc_str or "resource exhausted" in exc_str
+
 
 _DEDUPED_VIEW = "gold_reviews_deduped"
 
@@ -116,6 +129,23 @@ def run(state: AgentState) -> dict:
         return {"error": f"SQL agent encountered an error: {exc}"}
 
 
+@retry(
+    retry=retry_if_exception(_is_retryable),
+    wait=wait_exponential(multiplier=2, min=2, max=60),
+    stop=stop_after_attempt(4),
+)
+def _generate_id_query(llm: ChatGoogleGenerativeAI, query: str) -> str:
+    """Generates a SQL query for extracting business_ids. Retries on 429/5xx."""
+    id_prompt = (
+        f"Based on this question: '{query}'\n"
+        f"Write a SQL query against {_DEDUPED_VIEW} that returns ONLY the "
+        f"DISTINCT business_id values matching the criteria. Use LIMIT 200. "
+        f"Return ONLY the SQL query, nothing else."
+    )
+    response = llm.invoke([{"role": "human", "content": id_prompt}])
+    return response.content.strip().strip("`").replace("sql\n", "").strip()
+
+
 def _fetch_business_ids(db: SQLDatabase, query: str, llm: ChatGoogleGenerativeAI) -> list[str]:
     """Runs a dedicated SQL query to extract business_ids for HYBRID routing.
 
@@ -123,14 +153,7 @@ def _fetch_business_ids(db: SQLDatabase, query: str, llm: ChatGoogleGenerativeAI
     then executes the SQL directly to get raw results (not summarized text).
     """
     try:
-        id_prompt = (
-            f"Based on this question: '{query}'\n"
-            f"Write a SQL query against {_DEDUPED_VIEW} that returns ONLY the "
-            f"DISTINCT business_id values matching the criteria. Use LIMIT 200. "
-            f"Return ONLY the SQL query, nothing else."
-        )
-        response = llm.invoke([{"role": "human", "content": id_prompt}])
-        sql = response.content.strip().strip("`").replace("sql\n", "").strip()
+        sql = _generate_id_query(llm, query)
 
         # Execute the SQL directly via the engine
         with db._engine.connect() as conn:

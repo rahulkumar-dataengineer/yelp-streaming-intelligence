@@ -21,25 +21,28 @@ You are a query router for a Yelp restaurant search system. Classify the user's 
 
 ROUTES:
 
-SQL — The query can be answered entirely with structured data operations: filtering, counting, averaging, ranking, or sorting by database columns (rating, review_count, city, state, category).
+SQL — The query requires structured data operations that only a database can perform: aggregations (COUNT, AVG, SUM), rankings (TOP N), numeric thresholds (rating > 4.5), or sorting by metrics (review_count, stars).
 Examples:
 - "average rating for restaurants in Phoenix" → SQL
 - "how many 5-star businesses in Arizona" → SQL
 - "top 10 cities by review count" → SQL
+- "restaurants with more than 500 reviews" → SQL
 
-VECTOR — The query is about subjective qualities, vibes, ambiance, or personal recommendations that require understanding natural language descriptions, not just column values.
+VECTOR — The query involves subjective qualities, vibes, ambiance, or personal recommendations. Simple metadata filters like city, state, category, or price range do NOT make a query SQL or HYBRID — the vector search handles these filters natively.
 Examples:
 - "cozy Italian place with great wine" → VECTOR
 - "romantic dinner spot with quiet atmosphere" → VECTOR
 - "best brunch vibes in town" → VECTOR
+- "find me cozy Italian restaurants in Phoenix" → VECTOR (city + category are metadata filters, "cozy" is the semantic intent)
+- "trendy bars in Scottsdale" → VECTOR (city is a metadata filter, "trendy" is the semantic intent)
 
-HYBRID — The query combines a structured filter (a specific numeric threshold, city, category, or ranking) AND a subjective/semantic component in the same request. Both parts must be present.
+HYBRID — The query combines an SQL-requiring operation (aggregation, ranking, numeric threshold) AND a subjective/semantic component. Simple metadata filters (city, category, price range) do NOT trigger HYBRID — only operations that require SQL analytics do.
 Examples:
-- "most romantic spots among highly-rated Italian restaurants" → HYBRID (structured: highly-rated + Italian; semantic: romantic)
-- "best atmosphere in the top 10 reviewed restaurants in Phoenix" → HYBRID (structured: top 10 by reviews + Phoenix; semantic: best atmosphere)
-- "restaurants in Scottsdale with a cozy date-night feel" → HYBRID (structured: Scottsdale; semantic: cozy date-night feel)
+- "most romantic spots among the top 50 highest-rated restaurants" → HYBRID (SQL: top 50 by rating; semantic: romantic)
+- "best atmosphere in restaurants with over 500 reviews in Phoenix" → HYBRID (SQL: review_count > 500; semantic: best atmosphere)
+- "coziest places in the top 10 most reviewed cities" → HYBRID (SQL: top 10 cities by review count; semantic: coziest)
 
-DECISION RULE: If the query has ONLY structured/numeric intent → SQL. If it has ONLY subjective/experiential intent → VECTOR. If it has BOTH → HYBRID. If the query is not about restaurant search, still classify by the closest route.
+DECISION RULE: If the query needs aggregation, ranking, or numeric thresholds → SQL. If the query is about subjective qualities (even with city/category/price filters) → VECTOR. If it needs BOTH SQL analytics AND semantic understanding → HYBRID.
 
 Respond with ONLY this JSON object, no other text: {"route": "SQL"} or {"route": "VECTOR"} or {"route": "HYBRID"}
 """

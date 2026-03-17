@@ -21,8 +21,8 @@ This table has approximately 7 million rows. Be efficient with queries.
 
 Rules:
 1. NEVER use SELECT * — only select columns relevant to the question.
-2. ALWAYS include LIMIT 25 unless the user explicitly asks for more results.
-3. When route is HYBRID, include business_id in SELECT and use LIMIT 50.
+2. ALWAYS include LIMIT 50 unless the user explicitly asks for more results.
+3. When route is HYBRID, include business_id in SELECT and use LIMIT 200.
 4. Use WHERE clauses and aggregations to narrow results before returning.
 5. Column names use underscores (e.g., business_stars, review_stars, restaurants_price_range, noise_level).
 6. The 'categories' column is comma-separated text (e.g., "Restaurants, Italian, Pizza").
@@ -120,7 +120,7 @@ def run(state: AgentState) -> dict:
 
         system_prompt = _SYSTEM_PROMPT.format(table_name=_DEDUPED_VIEW)
         if route == "HYBRID":
-            system_prompt += "\nThis is a HYBRID query. Include business_id in SELECT and use LIMIT 50."
+            system_prompt += "\nThis is a HYBRID query. Include business_id in SELECT and use LIMIT 200."
 
         agent_executor = create_sql_agent(
             llm=llm,

@@ -91,7 +91,7 @@ Pings both backends to verify the system is operational.
 
 **Health checks:**
 - **Qdrant:** `qdrant_client.get_collections()` — confirms Qdrant is reachable on the same VM
-- **BigQuery:** `client.query("SELECT 1")` — confirms BigQuery credentials and connectivity
+- **BigQuery:** `client.query("SELECT 1")` — confirms BigQuery credentials and connectivity. Note: each call counts toward 1TB/month quota but is trivial (~10 bytes). Avoid calling `/health` at high frequency from monitoring tools.
 
 ## CORS Configuration
 
@@ -100,7 +100,9 @@ Configured via `CORS_ORIGIN` environment variable, loaded through `config/settin
 - **Local dev:** `CORS_ORIGIN=*` (or `http://localhost:5000`)
 - **GCP VM (prod):** `CORS_ORIGIN=https://your-project.web.app`
 
-Implementation: `flask-cors` with `origins=[settings.CORS_ORIGIN]`.
+Implementation: `flask-cors` with `origins=[settings.api.CORS_ORIGIN]`.
+
+**New dependencies:** `flask` and `flask-cors` must be added to `requirements.txt` (verify they're not already present).
 
 Rationale for env var approach over hardcoded `*`: demonstrates environment-aware configuration — the pattern you'd use in production. The API is read-only with no sensitive data, so `*` would also be acceptable.
 
@@ -108,8 +110,16 @@ Rationale for env var approach over hardcoded `*`: demonstrates environment-awar
 
 One new setting in `config/settings.py`:
 
+New class in `config/settings.py`, following the existing `_optional()` pattern:
+
 ```python
-CORS_ORIGIN: str = os.environ.get("CORS_ORIGIN", "*")
+class APISettings:
+    CORS_ORIGIN: str = _optional("CORS_ORIGIN", "*")
+
+# Add to Settings class:
+class Settings:
+    ...
+    api = APISettings()
 ```
 
 Follows the existing pattern — all config via `settings.py`, never import `os.environ` directly.
@@ -122,7 +132,7 @@ Follows the existing pattern — all config via `settings.py`, never import `os.
 - Copies project code (agents/, config/, graph.py, api.py, utils/)
 - Installs `requirements.txt`
 - Exposes port 5001
-- Entrypoint: Flask dev server (sufficient for portfolio traffic; gunicorn is an option if needed)
+- Entrypoint: Flask dev server with `threaded=True` (sufficient for portfolio traffic; gunicorn is an option if needed). Single-threaded Flask would block on agent calls (10-30s per HYBRID query); `threaded=True` allows concurrent requests.
 
 ### `build/docker-compose.yml`
 
@@ -143,7 +153,8 @@ Two services on a shared Docker network:
   - `QDRANT_COLLECTION=yelp_reviews`
   - `GEMINI_API_KEY` (from `.env`)
   - `GEMINI_MODEL`, `GEMINI_EMBEDDING_MODEL`, `GEMINI_EMBEDDING_DIMENSIONS`
-  - `BQ_PROJECT_ID`, `BQ_DATASET`, `BQ_TABLE`, `GOOGLE_APPLICATION_CREDENTIALS`
+  - `GCP_PROJECT_ID`, `GCP_BIGQUERY_DATASET`, `GCP_BIGQUERY_TABLE`
+  - `GOOGLE_APPLICATION_CREDENTIALS` (mount credentials file as Docker volume, set env var to mount path inside container)
   - `CORS_ORIGIN` (Firebase domain in prod)
 - Depends on: `qdrant`
 
@@ -180,7 +191,7 @@ Existing `tenacity` retry logic in agents handles transient 429s with exponentia
 - **Authentication / API keys** — read-only portfolio project, no sensitive data
 - **Request queuing or throttling** — Gemini limits are generous
 - **Gunicorn / production WSGI server** — Flask dev server is sufficient for portfolio traffic (can upgrade later if needed)
-- **Nginx config on the VM** — exists per global CLAUDE.md but specific subdomain/path routing is a deployment detail, not application design
+- **Nginx config on the VM** — the VM's nginx must be updated to reverse-proxy to `localhost:5001` for this project (e.g., by subdomain or path). The exact route depends on the Cloudflare/domain setup. This is a deployment step, not application code, but must not be forgotten.
 - **Firebase chat UI** — separate phase
 - **Streaming pipeline** — already complete, data is in BigQuery and Qdrant
 

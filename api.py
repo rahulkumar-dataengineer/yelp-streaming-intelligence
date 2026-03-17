@@ -10,7 +10,7 @@ from graph import build_graph
 
 from platform_commons.logger import Logger
 
-logger = Logger("api")
+logger = Logger.get(__name__)
 
 app = Flask(__name__)
 CORS(app, origins=[settings.api.CORS_ORIGIN])

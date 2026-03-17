@@ -137,18 +137,49 @@ python graph.py "best restaurants in the top 10 highest-rated cities"
 
 ---
 
-## Fresh Load (Reset Everything)
+## Reset Scenarios
 
-Use this when you want to wipe all data and reprocess from scratch.
+### Scenario 1: Recreate Local Infrastructure Only
+
+Use this when local Redpanda or Hive Metastore is in a bad state, topics are polluted, or you want a clean broker without touching BigQuery or Qdrant.
 
 ```bash
-# Step 1 — delete BigQuery table+view, Qdrant collection, and Gold checkpoint
+# Step 1 — tear down local containers + volumes (Redpanda, Hive Metastore, PostgreSQL)
+docker compose -f ../portfolio-platform-commons/src/platform_commons/docker/docker-compose.yml down -v
+
+# Step 2 — bring them back fresh
+infra-up
+
+# Step 3 — re-register Avro schemas + recreate Hive tables
+python -m infra
+
+# Step 4 — delete Spark checkpoints (old offsets no longer exist in Redpanda)
+rm -rf checkpoints/bronze checkpoints/silver checkpoints/gold
+
+# Step 5 — re-run the pipeline from the top (terminals 1–4 in Running the Pipeline)
+```
+
+> BigQuery and Qdrant data on GCP are **unaffected** by this reset — use Scenario 2 if you also want to wipe those.
+
+---
+
+### Scenario 2: Full Reset (Local + BigQuery + Qdrant)
+
+Use this to wipe everything and re-run the complete pipeline end-to-end from raw JSON files.
+
+```bash
+# Step 1 — wipe BigQuery table+view, Qdrant collection, and Gold checkpoint
 python -m processing.gold --reset
 
-# Step 2 — delete Bronze and Silver checkpoints + Parquet files
+# Step 2 — delete Bronze and Silver checkpoints
 rm -rf checkpoints/bronze checkpoints/silver
 
-# Step 3 — re-run the pipeline from the top (terminals 1–4 above)
+# Step 3 — tear down and recreate local infrastructure
+docker compose -f ../portfolio-platform-commons/src/platform_commons/docker/docker-compose.yml down -v
+infra-up
+python -m infra
+
+# Step 4 — re-run the pipeline from the top (terminals 1–4 in Running the Pipeline)
 ```
 
 > `--reset` deletes: `gold_reviews` table, `gold_reviews_deduped` view, Qdrant `yelp_reviews` collection, and `checkpoints/gold/`.

@@ -65,6 +65,7 @@ class SparkSettings:
     BRONZE_BUSINESS_CHECKPOINT: str = _optional("BRONZE_BUSINESS_CHECKPOINT", "checkpoints/bronze/businesses")
     BRONZE_REVIEW_CHECKPOINT: str = _optional("BRONZE_REVIEW_CHECKPOINT", "checkpoints/bronze/reviews")
     SILVER_CHECKPOINT: str = _optional("SILVER_CHECKPOINT", "checkpoints/silver")
+    GOLD_CHECKPOINT: str = _optional("GOLD_CHECKPOINT", "checkpoints/gold")
 
 
 class Settings:

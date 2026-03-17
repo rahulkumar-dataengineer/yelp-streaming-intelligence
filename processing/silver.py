@@ -399,6 +399,10 @@ def main() -> None:
             ).alias("ingestion_date"),
         )
 
+        # Dedup within the watermark window — bounded state, no unbounded growth.
+        # Cross-run duplicates (checkpoint reset) are handled by Gold's dedup VIEW.
+        silver_df = silver_df.dropDuplicatesWithinWatermark(["review_id"])
+
         log.info(f"Silver DataFrame columns: {len(silver_df.columns)}")
 
         silver_table = f"{SILVER_DB}.{SILVER_TABLE}"

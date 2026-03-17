@@ -106,7 +106,8 @@ def run(state: AgentState) -> dict:
         )
 
         result = agent_executor.invoke({"input": query})
-        output = result.get("output", "")
+        raw_output = result.get("output", "")
+        output = extract_text(raw_output) if not isinstance(raw_output, str) else raw_output
         intermediate_steps = result.get("intermediate_steps", [])
 
         log.info(f"SQL agent result length: {len(output)} chars")
@@ -139,7 +140,10 @@ def _generate_id_query(llm: ChatGoogleGenerativeAI, query: str) -> str:
     id_prompt = (
         f"Based on this question: '{query}'\n"
         f"Write a SQL query against {_DEDUPED_VIEW} that returns ONLY the "
-        f"DISTINCT business_id values matching the criteria. Use LIMIT 200. "
+        f"DISTINCT business_id values matching the criteria. Use LIMIT 200.\n"
+        f"Key columns: business_id, name, city, state, categories (comma-separated text), "
+        f"business_stars (1.0-5.0), review_stars (1-5), restaurants_price_range (1-4), "
+        f"noise_level, alcohol, wifi, text (review text).\n"
         f"Return ONLY the SQL query, nothing else."
     )
     response = llm.invoke([{"role": "human", "content": id_prompt}])

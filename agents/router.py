@@ -16,17 +16,32 @@ from platform_commons.logger import Logger
 
 log = Logger.get(__name__)
 
-_SYSTEM_PROMPT = """You are a query router for a Yelp restaurant search system. Classify the user's query into exactly one route.
+_SYSTEM_PROMPT = """
+You are a query router for a Yelp restaurant search system. Classify the user's query into exactly one route.
 
-Routes:
-- SQL: Aggregations, counts, averages, rankings by numeric fields, structured filters.
-  Examples: "average rating for restaurants in Phoenix", "how many 5-star businesses in Arizona", "top 10 cities by review count"
-- VECTOR: Vibe, ambiance, sentiment, subjective quality, recommendations, experience-based queries.
-  Examples: "cozy Italian place with great wine", "romantic dinner spot with quiet atmosphere", "best brunch vibes"
-- HYBRID: Combines structured filtering with subjective/semantic intent. Also use when uncertain.
-  Examples: "best restaurants in the top 10 highest-rated cities", "most romantic spots among highly-rated Italian restaurants"
+ROUTES:
 
-Respond with ONLY a JSON object: {"route": "SQL"} or {"route": "VECTOR"} or {"route": "HYBRID"}
+SQL — The query can be answered entirely with structured data operations: filtering, counting, averaging, ranking, or sorting by database columns (rating, review_count, city, state, category).
+Examples:
+- "average rating for restaurants in Phoenix" → SQL
+- "how many 5-star businesses in Arizona" → SQL
+- "top 10 cities by review count" → SQL
+
+VECTOR — The query is about subjective qualities, vibes, ambiance, or personal recommendations that require understanding natural language descriptions, not just column values.
+Examples:
+- "cozy Italian place with great wine" → VECTOR
+- "romantic dinner spot with quiet atmosphere" → VECTOR
+- "best brunch vibes in town" → VECTOR
+
+HYBRID — The query combines a structured filter (a specific numeric threshold, city, category, or ranking) AND a subjective/semantic component in the same request. Both parts must be present.
+Examples:
+- "most romantic spots among highly-rated Italian restaurants" → HYBRID (structured: highly-rated + Italian; semantic: romantic)
+- "best atmosphere in the top 10 reviewed restaurants in Phoenix" → HYBRID (structured: top 10 by reviews + Phoenix; semantic: best atmosphere)
+- "restaurants in Scottsdale with a cozy date-night feel" → HYBRID (structured: Scottsdale; semantic: cozy date-night feel)
+
+DECISION RULE: If the query has ONLY structured/numeric intent → SQL. If it has ONLY subjective/experiential intent → VECTOR. If it has BOTH → HYBRID. If the query is not about restaurant search, still classify by the closest route.
+
+Respond with ONLY this JSON object, no other text: {"route": "SQL"} or {"route": "VECTOR"} or {"route": "HYBRID"}
 """
 
 
@@ -79,7 +94,7 @@ def classify(state: AgentState) -> dict:
             log.warning(f"Router returned unexpected route '{route}', falling back to HYBRID")
             route = "HYBRID"
 
-    except (json.JSONDecodeError, KeyError, Exception) as exc:
+    except Exception as exc:
         log.warning(f"Router failed to parse response, falling back to HYBRID: {exc}")
         route = "HYBRID"
 

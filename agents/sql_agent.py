@@ -4,13 +4,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits.sql.base import create_sql_agent
 from sqlalchemy import create_engine, text
-from tenacity import (
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_exponential,
-)
-
 from agents.state import AgentState, extract_text
 from config.settings import settings
 from platform_commons.logger import Logger
@@ -18,23 +11,18 @@ from platform_commons.logger import Logger
 log = Logger.get(__name__)
 
 
-def _is_retryable(exc: BaseException) -> bool:
-    """Returns True for HTTP 429 and 5xx errors."""
-    exc_str = str(exc).lower()
-    return "429" in exc_str or "500" in exc_str or "503" in exc_str or "resource exhausted" in exc_str
-
-
 _DEDUPED_VIEW = "gold_reviews_deduped"
 
-_SYSTEM_PROMPT = """You are a SQL analyst querying a Yelp restaurant reviews database in BigQuery.
+_SYSTEM_PROMPT = """
+You are a SQL analyst querying a Yelp restaurant reviews database in BigQuery.
 
 Table: {table_name}
 This table has approximately 7 million rows. Be efficient with queries.
 
 Rules:
 1. NEVER use SELECT * — only select columns relevant to the question.
-2. ALWAYS include LIMIT 50 unless the user explicitly asks for more results.
-3. When route is HYBRID, include business_id in SELECT and use LIMIT 200.
+2. ALWAYS include LIMIT 25 unless the user explicitly asks for more results.
+3. When route is HYBRID, include business_id in SELECT and use LIMIT 50.
 4. Use WHERE clauses and aggregations to narrow results before returning.
 5. Column names use underscores (e.g., business_stars, review_stars, restaurants_price_range, noise_level).
 6. The 'categories' column is comma-separated text (e.g., "Restaurants, Italian, Pizza").
@@ -71,6 +59,44 @@ def _extract_sql_from_steps(intermediate_steps: list) -> str:
     return ""
 
 
+def _extract_business_ids(db: SQLDatabase, intermediate_steps: list) -> list[str]:
+    """Re-executes the agent's SQL to extract business_ids from structured rows.
+
+    Takes the SQL query the agent already generated (from intermediate_steps),
+    re-executes it via raw SQLAlchemy to get structured rows, and pulls the
+    business_id column by name. Avoids a second LLM call.
+
+    Args:
+        db: SQLDatabase instance with an active engine.
+        intermediate_steps: Agent intermediate steps containing sql_db_query actions.
+
+    Returns:
+        List of business_id strings. Empty list if extraction fails.
+    """
+    sql = _extract_sql_from_steps(intermediate_steps)
+    if not sql:
+        log.warning("No SQL query found in intermediate steps for business_id extraction")
+        return []
+
+    try:
+        with db._engine.connect() as conn:
+            result = conn.execute(text(sql))
+            columns = list(result.keys())
+
+            if "business_id" not in columns:
+                log.warning(f"business_id not in SELECT columns: {columns}")
+                return []
+
+            bid_idx = columns.index("business_id")
+            ids = [row[bid_idx] for row in result if row[bid_idx]]
+
+        return ids
+
+    except Exception as exc:
+        log.warning(f"Business_id extraction failed: {exc}")
+        return []
+
+
 def run(state: AgentState) -> dict:
     """Runs the SQL agent against BigQuery.
 
@@ -94,7 +120,7 @@ def run(state: AgentState) -> dict:
 
         system_prompt = _SYSTEM_PROMPT.format(table_name=_DEDUPED_VIEW)
         if route == "HYBRID":
-            system_prompt += "\nThis is a HYBRID query. Include business_id in SELECT and use LIMIT 200."
+            system_prompt += "\nThis is a HYBRID query. Include business_id in SELECT and use LIMIT 50."
 
         agent_executor = create_sql_agent(
             llm=llm,
@@ -117,9 +143,9 @@ def run(state: AgentState) -> dict:
             "sql_result": output,
         }
 
-        # For HYBRID: run a dedicated query to get business_ids reliably
+        # For HYBRID: re-execute the agent's SQL to extract structured business_ids
         if route == "HYBRID":
-            business_ids = _fetch_business_ids(db, query, llm)
+            business_ids = _extract_business_ids(db, intermediate_steps)
             update["sql_business_ids"] = business_ids
             log.info(f"SQL agent extracted {len(business_ids)} business_ids for HYBRID")
 
@@ -130,42 +156,3 @@ def run(state: AgentState) -> dict:
         return {"error": f"SQL agent encountered an error: {exc}"}
 
 
-@retry(
-    retry=retry_if_exception(_is_retryable),
-    wait=wait_exponential(multiplier=2, min=2, max=60),
-    stop=stop_after_attempt(4),
-)
-def _generate_id_query(llm: ChatGoogleGenerativeAI, query: str) -> str:
-    """Generates a SQL query for extracting business_ids. Retries on 429/5xx."""
-    id_prompt = (
-        f"Based on this question: '{query}'\n"
-        f"Write a SQL query against {_DEDUPED_VIEW} that returns ONLY the "
-        f"DISTINCT business_id values matching the criteria. Use LIMIT 200.\n"
-        f"Key columns: business_id, name, city, state, categories (comma-separated text), "
-        f"business_stars (1.0-5.0), review_stars (1-5), restaurants_price_range (1-4), "
-        f"noise_level, alcohol, wifi, text (review text).\n"
-        f"Return ONLY the SQL query, nothing else."
-    )
-    response = llm.invoke([{"role": "human", "content": id_prompt}])
-    return extract_text(response.content).strip("`").replace("sql\n", "").strip()
-
-
-def _fetch_business_ids(db: SQLDatabase, query: str, llm: ChatGoogleGenerativeAI) -> list[str]:
-    """Runs a dedicated SQL query to extract business_ids for HYBRID routing.
-
-    Uses a second, focused agent call that asks specifically for business_ids,
-    then executes the SQL directly to get raw results (not summarized text).
-    """
-    try:
-        sql = _generate_id_query(llm, query)
-
-        # Execute the SQL directly via the engine
-        with db._engine.connect() as conn:
-            result = conn.execute(text(sql))
-            ids = [row[0] for row in result if row[0]]
-
-        return ids[:200]
-
-    except Exception as exc:
-        log.warning(f"Dedicated business_id query failed: {exc}")
-        return []

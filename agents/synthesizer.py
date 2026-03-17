@@ -14,7 +14,8 @@ from platform_commons.logger import Logger
 
 log = Logger.get(__name__)
 
-_SYSTEM_PROMPT = """You are a Yelp restaurant expert. Synthesize the retrieved data into a helpful, conversational answer.
+_SYSTEM_PROMPT = """
+You are a Yelp restaurant expert. Synthesize the retrieved data into a helpful, conversational answer.
 
 Rules:
 1. Reference specific business names, ratings, and review quotes from the provided data.

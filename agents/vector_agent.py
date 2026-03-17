@@ -26,11 +26,13 @@ from platform_commons.logger import Logger
 
 log = Logger.get(__name__)
 
-_FILTER_PROMPT = """You are a filter extractor for a Yelp restaurant vector search system.
+_FILTER_PROMPT = """
+You are a filter extractor for a Yelp restaurant vector search system.
 
 Given a user query, extract structured filters from the available payload fields. Return ONLY a JSON object with matching fields. Omit fields that aren't mentioned or implied.
 
 Available fields and their types:
+- name (string): business name, e.g., "Pizzeria Bianco", "Durant's"
 - city (string): city name, e.g., "Phoenix", "Scottsdale"
 - state (string): 2-letter state code, e.g., "AZ", "NV"
 - categories (string): comma-separated, e.g., "Italian", "Pizza", "Sushi"
@@ -39,6 +41,7 @@ Available fields and their types:
 - alcohol (string): "none", "beer_and_wine", "full_bar"
 - wifi (string): "no", "free", "paid"
 - outdoor_seating (boolean): true/false
+- is_open (boolean): true if the business is currently open, false if permanently closed
 - business_stars (float): 1.0-5.0 business average rating
 - review_stars (integer): 1-5 individual review rating
 
@@ -48,6 +51,9 @@ Response: {"city": "Phoenix", "categories": "Italian"}
 
 Query: "loud bars with full bar in Scottsdale"
 Response: {"city": "Scottsdale", "noise_level": "loud", "alcohol": "full_bar"}
+
+Query: "reviews for Pizzeria Bianco"
+Response: {"name": "Pizzeria Bianco"}
 
 Respond with ONLY the JSON object, no extra text.
 """
@@ -107,7 +113,12 @@ def _build_qdrant_filter(filters: dict) -> Filter | None:
         if value is None or value == "":
             continue
 
-        if key in ("city", "state"):
+        if key == "name":
+            # Substring match — users won't type exact business names
+            conditions.append(
+                FieldCondition(key=key, match=MatchText(text=str(value)))
+            )
+        elif key in ("city", "state"):
             # No lowercasing — Qdrant stores original casing from silver layer
             conditions.append(
                 FieldCondition(key=key, match=MatchValue(value=str(value)))
@@ -125,7 +136,7 @@ def _build_qdrant_filter(filters: dict) -> Filter | None:
             conditions.append(
                 FieldCondition(key=key, match=MatchValue(value=str(value)))
             )
-        elif key == "outdoor_seating":
+        elif key in ("outdoor_seating", "is_open"):
             conditions.append(
                 FieldCondition(key=key, match=MatchValue(value=bool(value)))
             )

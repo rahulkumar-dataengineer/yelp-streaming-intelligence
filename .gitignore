@@ -42,6 +42,6 @@ output/
 
 exploration/*.txt
 claude.md
-/docs/
+docs/
 /logs/
 .claude/

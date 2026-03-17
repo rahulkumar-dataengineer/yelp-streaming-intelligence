@@ -45,6 +45,7 @@ class APISettings:
 class YelpSettings:
     BUSINESS_JSON_PATH: str = _require("YELP_BUSINESS_JSON_PATH")
     REVIEW_JSON_PATH: str = _require("YELP_REVIEW_JSON_PATH")
+    REVIEW_LIMIT: int = int(_optional("REVIEW_LIMIT", "1000000"))
 
 
 class KafkaSettings:

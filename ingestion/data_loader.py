@@ -6,6 +6,7 @@ at a time with constant memory overhead regardless of file size.
 
 import json
 import os
+from itertools import islice
 from typing import Generator
 
 from config.settings import settings
@@ -70,16 +71,21 @@ def load_businesses() -> Generator[dict, None, None]:
 
 
 def load_reviews() -> Generator[dict, None, None]:
-    """Loads Yelp reviews line-by-line from newline-delimited JSON."""
+    """Loads Yelp reviews line-by-line from newline-delimited JSON.
+
+    Capped at settings.yelp.REVIEW_LIMIT records (default 1,000,000).
+    Set REVIEW_LIMIT=0 in .env to disable the cap and load all records.
+    """
 
     path = settings.yelp.REVIEW_JSON_PATH
     _validate_path(path, "Review")
-    log.info(f"Loading reviews from: {path}")
+    limit = settings.yelp.REVIEW_LIMIT
+    log.info(f"Loading reviews from: {path} (limit: {limit:,})")
 
     count = 0
 
     with open(path) as f:
-        for line in f:
+        for line in islice(f, limit or None):
             record = json.loads(line)
             yield _clean_record(record)
             count += 1

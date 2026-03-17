@@ -1,94 +1,203 @@
 # yelp-streaming-intelligence
-Ask "find me a cozy Italian spot on a rainy evening" and get results. A real-time Yelp streaming pipeline with an AI agent that combines SQL analytics and semantic vector search.
 
+Ask *"find me a cozy Italian spot on a rainy evening"* and get results backed by 1 million real Yelp reviews. A real-time streaming pipeline with a LangGraph multi-agent router that combines BigQuery SQL analytics and Qdrant semantic vector search.
 
-## Architecture Overview
-
-### Data Flow
+## Architecture
 
 ```
-Yelp JSON Files
+Yelp JSON (1M reviews)
      │
      ▼
 ┌─────────────────┐
-│  producer.py    │  Reads business.json + review.json, joins on business_id,
-│  (kafka-python) │  streams ~500 msg/sec as JSON payloads
-└────────┬────────┘
-         │ Kafka Protocol (port 9092)
+│   producer.py   │  Streams businesses + reviews to Redpanda as Avro messages
+└────────┬────────┘  keyed by business_id (co-partitioned for stream-stream join)
+         │ Kafka (port 9092)
          ▼
 ┌─────────────────┐
-│   Redpanda      │  Kafka-compatible message broker running in Docker.
-│  (Docker)       │  Topic: yelp_stream
+│    Redpanda     │  Kafka-compatible broker, local Docker
+│   (Docker)      │  Topics: yelp_businesses, yelp_reviews
 └────────┬────────┘
-         │ Spark Kafka Source
+         │ PySpark Structured Streaming
          ▼
-┌──────────────────────────────────────────────┐
-│         spark_stream.py (PySpark)            │
-│         Structured Streaming + foreachBatch  │
-└────────────┬─────────────────────┬───────────┘
-             │                     │
-     Branch A│                     │Branch B
-             ▼                     ▼
-   ┌──────────────────┐   ┌──────────────────────┐
-   │  Google BigQuery  │   │  Pinecone Serverless  │
-   │  (yelp_analytics) │   │  (yelp-reviews index) │
-   │  Structured rows  │   │  384-dim embeddings   │
-   └────────┬──────────┘   └──────────┬────────────┘
-            │                         │
-            └────────────┬────────────┘
-                         │
-                         ▼
-          ┌───────────────────────────────┐
-          │  LangGraph Multi-Agent System │
-          │  ┌──────────┐                 │
-          │  │  Router  │ (Gemini Flash)  │
-          │  └────┬─────┘                 │
-          │  ┌────┴──────────────┐        │
-          │  │                   │        │
-          │  ▼                   ▼        │
-          │ SQL Agent      Vector Agent   │
-          │ (BigQuery)     (Pinecone)     │
-          │        └────┬────┘            │
-          │             ▼                 │
-          │       Synthesizer             │
-          │       (Gemini Flash)          │
-          └──────────────┬────────────────┘
-                         │
-                         ▼
-            ┌─────────────────────────┐
-            │  Streamlit Web App      │
-            │  (Streamlit Cloud)      │
-            └─────────────────────────┘
+┌──────────────────────────────────────────┐
+│  Bronze  →  Silver  →  Gold (foreachBatch) │
+│  Raw Avro   Cleaned +   Dual-sink         │
+│  Parquet    stream join  BigQuery+Qdrant  │
+└──────────────────────────────────────────┘
+         │                    │
+         ▼                    ▼
+  ┌────────────┐     ┌──────────────────┐
+  │  BigQuery  │     │  Qdrant          │
+  │  Sandbox   │     │  (GCP e2-micro)  │
+  │  SQL sink  │     │  768-dim vectors │
+  └─────┬──────┘     └────────┬─────────┘
+        └──────────┬──────────┘
+                   ▼
+     ┌─────────────────────────────┐
+     │  LangGraph Multi-Agent      │
+     │  Router → SQL | Vector |    │
+     │           HYBRID            │
+     │  Synthesizer (Gemini)       │
+     └──────────────┬──────────────┘
+                    ▼
+          ┌──────────────────┐
+          │  Flask API       │  /query  /health
+          │  Firebase Chat   │  Static frontend
+          └──────────────────┘
 ```
 
-### Technologies Used
+## Tech Stack
 
-| Technology | Role |
+| Layer | Technology |
 |---|---|
-| **Redpanda** | Kafka-compatible message broker. Runs locally in Docker with zero JVM overhead |
-| **kafka-python-ng** | Python producer client that streams Yelp records at ~500 msg/sec |
-| **PySpark Structured Streaming** | Distributed stream processor consuming from Redpanda with exactly-once semantics |
-| **Google BigQuery** | Cloud analytical data warehouse storing structured business and review data |
-| **Pinecone Serverless** | Vector database storing 384-dim semantic embeddings for similarity search |
-| **sentence-transformers (all-MiniLM-L6-v2)** | Local embedding model producing 384-dim float vectors — no API cost |
-| **Google Gemini 2.5 Flash** | LLM powering the router, SQL agent, and answer synthesizer |
-| **LangGraph** | Stateful multi-agent orchestration framework managing query routing and agent execution |
-| **LangChain** | Abstractions for SQL agent, vector store integration, and LLM connectors |
-| **Streamlit** | Python-native web framework for the recruiter-facing chat interface |
-| **Streamlit Community Cloud** | Free public deployment target — provides a permanent HTTPS URL |
+| Message broker | Redpanda (Docker, Kafka-compatible) |
+| Stream processing | PySpark 3.5 Structured Streaming (Bronze/Silver/Gold) |
+| Structured sink | BigQuery Sandbox — Load API only |
+| Vector sink | Qdrant (self-hosted, on_disk=True, 768-dim cosine) |
+| Embeddings | Gemini Embedding (`gemini-embedding-001`, 768-dim MRL) |
+| LLM | Gemini 3.1 Flash-Lite (`gemini-3.1-flash-lite-preview`) |
+| Agent framework | LangGraph + LangChain |
+| API | Flask |
+| Frontend | Firebase Hosting (Spark plan — static only) |
 
-### Prerequisites
+## Prerequisites
 
 **Software:**
-- Python 3.11
-- Docker Desktop (for Redpanda)
-- Git
+- Python 3.11+
+- Docker Desktop
 
-**Cloud Accounts (all free tier):**
-- Google Cloud Platform — BigQuery enabled, service account with BigQuery Editor role
-- Pinecone — Serverless index named `yelp-reviews` (384 dims, cosine metric)
+**Cloud accounts (all free tier):**
+- Google Cloud Platform — BigQuery Sandbox, service account with BigQuery Editor role
 - Google AI Studio — Gemini API key
+- Qdrant — self-hosted on GCP e2-micro VM (or `localhost:6333` for local dev)
 
 **Data:**
 - Yelp Open Dataset: `yelp_academic_dataset_business.json` + `yelp_academic_dataset_review.json`
-- Download from: https://www.yelp.com/dataset
+
+---
+
+## Running the Pipeline
+
+### 1. Start local infrastructure
+
+```bash
+# Start Redpanda + Hive Metastore (shared infra from platform-commons)
+infra-up
+# or:
+docker compose -f ../portfolio-platform-commons/src/platform_commons/docker/docker-compose.yml up -d
+```
+
+### 2. Provision schemas and metastore (run once)
+
+```bash
+python -m infra
+```
+
+### 3. Validate all connections (9-point health check)
+
+```bash
+python -m tests.validate_connections
+```
+
+### 4. Run the pipeline — each in its own terminal
+
+```bash
+# Terminal 1 — produce 1M reviews + 150K businesses to Redpanda
+python -m ingestion.producer
+
+# Terminal 2 — Bronze: Avro from Kafka → raw Parquet
+python -m processing.bronze
+
+# Terminal 3 — Silver: type-cast, clean, stream-stream join on business_id
+python -m processing.silver
+
+# Terminal 4 — Gold: dual-sink to BigQuery + Qdrant (embeddings via Gemini)
+python -m processing.gold
+```
+
+### 5. Verify sinks
+
+```bash
+python check_sinks.py
+```
+
+### 6. Run the agent API
+
+```bash
+python api.py
+```
+
+### 7. Test the agent directly
+
+```bash
+python graph.py "find me cozy Italian restaurants in Phoenix"
+python graph.py "what's the average rating for restaurants in Scottsdale"
+python graph.py "best restaurants in the top 10 highest-rated cities"
+```
+
+---
+
+## Fresh Load (Reset Everything)
+
+Use this when you want to wipe all data and reprocess from scratch.
+
+```bash
+# Step 1 — delete BigQuery table+view, Qdrant collection, and Gold checkpoint
+python -m processing.gold --reset
+
+# Step 2 — delete Bronze and Silver checkpoints + Parquet files
+rm -rf checkpoints/bronze checkpoints/silver
+
+# Step 3 — re-run the pipeline from the top (terminals 1–4 above)
+```
+
+> `--reset` deletes: `gold_reviews` table, `gold_reviews_deduped` view, Qdrant `yelp_reviews` collection, and `checkpoints/gold/`.
+
+---
+
+## Resuming After Interruption
+
+Spark checkpoints make resumption automatic. If a process dies mid-run:
+
+| Stopped stage | How to resume |
+|---|---|
+| **Producer** | Restart `python -m ingestion.producer` — Redpanda retains unconsumed messages |
+| **Bronze** | Restart `python -m processing.bronze` — picks up from its Kafka offset checkpoint |
+| **Silver** | Restart `python -m processing.silver` — picks up from its Parquet file checkpoint |
+| **Gold** | Restart `python -m processing.gold` — picks up from its file checkpoint, Qdrant upserts are idempotent via deterministic UUIDs |
+
+**Do not delete checkpoints unless you intend a full reset** — they are the resume markers.
+
+If Gold stopped mid-batch and you see duplicate rows in BigQuery, that is expected — the `gold_reviews_deduped` view handles deduplication automatically via `ROW_NUMBER() OVER (PARTITION BY review_id)`.
+
+---
+
+## Partial Reset (one sink only)
+
+If only one sink is corrupted or you want to rebuild just Qdrant or just BigQuery:
+
+```bash
+# Reset only Qdrant (keep BigQuery intact)
+python - <<'EOF'
+from processing.sinks.qdrant_sink import QdrantManager
+QdrantManager().reset()
+EOF
+
+# Reset only BigQuery table + dedup view (keep Qdrant intact)
+python - <<'EOF'
+from processing.sinks.bigquery import BigQueryManager
+from config.settings import settings
+BigQueryManager().reset(settings.spark.GOLD_CHECKPOINT)
+EOF
+```
+
+After a partial reset, restart only `python -m processing.gold --reset` is cleaner — but the above works if you need surgical control.
+
+---
+
+## Firebase Frontend
+
+```bash
+cd firebase && firebase serve     # local preview
+cd firebase && firebase deploy    # deploy to Firebase Hosting
+```

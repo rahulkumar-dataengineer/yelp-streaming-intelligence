@@ -8,7 +8,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from agents.state import AgentState
+from agents.state import AgentState, extract_text
 from config.settings import settings
 from platform_commons.logger import Logger
 
@@ -75,7 +75,7 @@ def _synthesize_llm(context: str) -> str:
             {"role": "human", "content": context},
         ],
     )
-    return response.content.strip()
+    return extract_text(response.content)
 
 
 def run(state: AgentState) -> dict:

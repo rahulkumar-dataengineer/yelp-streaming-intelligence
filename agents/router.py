@@ -10,7 +10,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from agents.state import AgentState
+from agents.state import AgentState, extract_text
 from config.settings import settings
 from platform_commons.logger import Logger
 
@@ -55,7 +55,7 @@ def _classify_llm(query: str) -> str:
             {"role": "human", "content": query},
         ],
     )
-    return response.content.strip()
+    return extract_text(response.content)
 
 
 def classify(state: AgentState) -> dict:

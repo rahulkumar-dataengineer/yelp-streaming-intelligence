@@ -11,7 +11,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from agents.state import AgentState
+from agents.state import AgentState, extract_text
 from config.settings import settings
 from platform_commons.logger import Logger
 
@@ -143,7 +143,7 @@ def _generate_id_query(llm: ChatGoogleGenerativeAI, query: str) -> str:
         f"Return ONLY the SQL query, nothing else."
     )
     response = llm.invoke([{"role": "human", "content": id_prompt}])
-    return response.content.strip().strip("`").replace("sql\n", "").strip()
+    return extract_text(response.content).strip("`").replace("sql\n", "").strip()
 
 
 def _fetch_business_ids(db: SQLDatabase, query: str, llm: ChatGoogleGenerativeAI) -> list[str]:

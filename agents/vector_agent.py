@@ -20,7 +20,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from agents.state import AgentState
+from agents.state import AgentState, extract_text
 from config.settings import settings
 from platform_commons.logger import Logger
 
@@ -96,7 +96,7 @@ def _extract_filters_llm(query: str) -> dict:
             {"role": "human", "content": query},
         ],
     )
-    return json.loads(response.content.strip())
+    return json.loads(extract_text(response.content))
 
 
 def _build_qdrant_filter(filters: dict) -> Filter | None:

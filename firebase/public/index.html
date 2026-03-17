@@ -65,6 +65,7 @@
       font-weight: 600;
       color: var(--text-heading);
       line-height: 1.2;
+      text-align: center;
     }
 
     .header-title span {
@@ -249,9 +250,9 @@
     }
 
     .route-badge.hybrid {
-      background: rgba(0, 212, 255, 0.1);
-      color: var(--accent);
-      border: 1px solid rgba(0, 212, 255, 0.25);
+      background: linear-gradient(135deg, var(--accent), var(--accent-purple));
+      color: #fff;
+      border: none;
     }
 
     /* ── Details Toggle ── */
@@ -524,21 +525,20 @@
     #drawer {
       position: fixed;
       top: 0;
-      right: 0;
-      width: 440px;
+      left: -420px;
+      width: 420px;
       max-width: 100vw;
       height: 100vh;
       background: var(--card);
-      border-left: 1px solid var(--card-border);
+      border-right: 1px solid var(--card-border);
       z-index: 101;
-      transform: translateX(100%);
-      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
       overflow-y: auto;
       padding: 0 0 40px;
     }
 
     #drawer.open {
-      transform: translateX(0);
+      left: 0;
     }
 
     #drawer::-webkit-scrollbar { width: 6px; }
@@ -657,30 +657,29 @@
     }
 
     .stack-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
 
-    .stack-item {
-      background: var(--code-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 10px 12px;
-    }
-
-    .stack-item-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #666;
-      margin-bottom: 2px;
-    }
-
-    .stack-item-value {
+    .stack-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
       font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .stack-label {
+      min-width: 130px;
+      flex-shrink: 0;
+      color: var(--accent);
+      font-size: 12px;
       font-weight: 600;
-      color: var(--text-heading);
+    }
+
+    .stack-value {
+      color: var(--text);
     }
 
     /* ── Highlights ── */
@@ -762,8 +761,6 @@
 
       #drawer { width: 100vw; }
 
-      .stack-grid { grid-template-columns: 1fr; }
-
       .arch-row { font-size: 11px; }
     }
   </style>
@@ -772,11 +769,11 @@
 
   <!-- ── Header ── -->
   <header>
+    <button class="about-btn" onclick="openDrawer()">&#9776; About</button>
     <div class="header-title">
       <h1>Yelp Streaming Intelligence</h1>
       <span>Real-time dual-pipeline · BigQuery + Qdrant · LangGraph</span>
     </div>
-    <button class="about-btn" onclick="openDrawer()">&#9776; About</button>
   </header>
 
   <!-- ── About Drawer ── -->
@@ -832,37 +829,33 @@
       <div class="stack-section">
         <h3>Tech Stack</h3>
         <div class="stack-grid">
-          <div class="stack-item">
-            <div class="stack-item-label">Broker</div>
-            <div class="stack-item-value">Redpanda</div>
+          <div class="stack-row">
+            <span class="stack-label">Streaming</span>
+            <span class="stack-value">Redpanda (Kafka), PySpark</span>
           </div>
-          <div class="stack-item">
-            <div class="stack-item-label">Stream Processing</div>
-            <div class="stack-item-value">PySpark 3.5</div>
+          <div class="stack-row">
+            <span class="stack-label">Structured Store</span>
+            <span class="stack-value">BigQuery (free tier)</span>
           </div>
-          <div class="stack-item">
-            <div class="stack-item-label">SQL Analytics</div>
-            <div class="stack-item-value">BigQuery</div>
+          <div class="stack-row">
+            <span class="stack-label">Vector Store</span>
+            <span class="stack-value">Qdrant (self-hosted)</span>
           </div>
-          <div class="stack-item">
-            <div class="stack-item-label">Vector Search</div>
-            <div class="stack-item-value">Qdrant (768-dim)</div>
+          <div class="stack-row">
+            <span class="stack-label">LLM / Embeddings</span>
+            <span class="stack-value">Gemini Flash-Lite, gemini-embedding-001</span>
           </div>
-          <div class="stack-item">
-            <div class="stack-item-label">Embeddings</div>
-            <div class="stack-item-value">Gemini Embedding</div>
+          <div class="stack-row">
+            <span class="stack-label">Agent Orchestration</span>
+            <span class="stack-value">LangGraph + LangChain</span>
           </div>
-          <div class="stack-item">
-            <div class="stack-item-label">LLM</div>
-            <div class="stack-item-value">Gemini Flash-Lite</div>
+          <div class="stack-row">
+            <span class="stack-label">API</span>
+            <span class="stack-value">Flask on GCP e2-micro</span>
           </div>
-          <div class="stack-item">
-            <div class="stack-item-label">Agent Framework</div>
-            <div class="stack-item-value">LangGraph</div>
-          </div>
-          <div class="stack-item">
-            <div class="stack-item-label">API / Hosting</div>
-            <div class="stack-item-value">Flask + Firebase</div>
+          <div class="stack-row">
+            <span class="stack-label">Frontend</span>
+            <span class="stack-value">Firebase Hosting (static)</span>
           </div>
         </div>
       </div>
@@ -910,14 +903,14 @@
         Ask for stats, vibes, or a mix of both.
       </p>
       <div class="chips">
-        <button class="chip" data-query="Find cozy Italian restaurants in Phoenix with great ambiance">
-          Cozy Italian restaurants in Phoenix
+        <button class="chip" data-query="cozy Italian restaurants in Phoenix">
+          cozy Italian restaurants in Phoenix
         </button>
-        <button class="chip" data-query="What is the average star rating for restaurants in Las Vegas?">
-          Average rating for Las Vegas restaurants
+        <button class="chip" data-query="average rating for restaurants in Scottsdale">
+          average rating for restaurants in Scottsdale
         </button>
-        <button class="chip" data-query="Best brunch spots in the top 5 highest-rated cities">
-          Best brunch in highest-rated cities
+        <button class="chip" data-query="best restaurants in the top rated cities">
+          best restaurants in the top rated cities
         </button>
       </div>
     </div>
@@ -985,7 +978,11 @@
 
     /* ── Build details HTML for SQL query, SQL result, vector cards ── */
     function buildDetailsHtml(data) {
+      const route = parseRoute(data);
       const parts = [];
+      if (route) {
+        parts.push(`<h4>Routed as: ${escapeHtml(route)}</h4>`);
+      }
 
       if (data.sql_query) {
         parts.push(
@@ -1008,7 +1005,9 @@
           const city = escapeHtml(payload.city || '');
           const state = escapeHtml(payload.state || '');
           const stars = payload.stars ? escapeHtml(String(payload.stars)) : '';
-          const review = escapeHtml(payload.text || payload.review_text || '');
+          const rawText = payload.text || payload.review_text || '';
+          const snippet = rawText.slice(0, 200) + (rawText.length > 200 ? '...' : '');
+          const review = escapeHtml(snippet);
           const score = typeof r.score === 'number' ? r.score.toFixed(3) : '';
           const metaParts = [city, state].filter(Boolean).join(', ');
           const starStr = stars ? ` &middot; ${stars}&#9733;` : '';
@@ -1157,6 +1156,7 @@
       lastQuery = text;
       isLoading = true;
       sendBtn.disabled = true;
+      inputEl.disabled = true;
 
       // Clear input
       inputEl.value = '';
@@ -1192,6 +1192,7 @@
       } finally {
         isLoading = false;
         sendBtn.disabled = false;
+        inputEl.disabled = false;
         inputEl.focus();
       }
     }

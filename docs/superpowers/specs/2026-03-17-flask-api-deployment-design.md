@@ -124,6 +124,33 @@ class Settings:
 
 Follows the existing pattern — all config via `settings.py`, never import `os.environ` directly.
 
+### Lazy Settings for Non-API Classes
+
+**Problem:** `settings.py` eagerly instantiates ALL settings classes at import time, including `YelpSettings` which calls `_require("YELP_BUSINESS_JSON_PATH")`. The API container doesn't need Yelp JSON paths (that's ingestion-only), so importing `settings` will crash with `EnvironmentError`.
+
+**Similarly affected:** `YelpSettings` (2 required vars). `KafkaSettings`, `HiveSettings`, `SparkSettings` use `_optional()` with defaults so they won't crash, but they're also unused by the API.
+
+**Solution:** Make `YelpSettings` lazy in `Settings` — only instantiate when accessed, not at module load. Use Python's `@property` with a cached instance:
+
+```python
+class Settings:
+    gcp    = GCPSettings()
+    qdrant = QdrantSettings()
+    gemini = GeminiSettings()
+    kafka  = KafkaSettings()
+    hive   = HiveSettings()
+    spark  = SparkSettings()
+    api    = APISettings()
+
+    @property
+    def yelp(self):
+        if not hasattr(self, '_yelp'):
+            self._yelp = YelpSettings()
+        return self._yelp
+```
+
+This way, `from config.settings import settings` works in the API container. `settings.yelp` only crashes if you actually access it — which the API never does. Ingestion code that does `settings.yelp.BUSINESS_JSON_PATH` still works as before.
+
 ## Deployment Architecture
 
 ### `build/Dockerfile`

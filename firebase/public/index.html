@@ -1001,16 +1001,16 @@
 
       if (data.vector_results && data.vector_results.length > 0) {
         const cards = data.vector_results.map(r => {
-          const payload = r.payload || {};
-          const name = escapeHtml(payload.business_name || payload.name || 'Unknown');
-          const city = escapeHtml(payload.city || '');
-          const state = escapeHtml(payload.state || '');
-          const stars = payload.stars ? escapeHtml(String(payload.stars)) : '';
-          const rawText = payload.text || payload.review_text || '';
+          const name = escapeHtml(r.name || 'Unknown');
+          const city = escapeHtml(r.city || '');
+          const state = escapeHtml(r.state || '');
+          const categories = escapeHtml(r.categories || '');
+          const stars = r.business_stars ? escapeHtml(String(r.business_stars)) : '';
+          const rawText = r.text || '';
           const snippet = rawText.slice(0, 200) + (rawText.length > 200 ? '...' : '');
           const review = escapeHtml(snippet);
           const score = typeof r.score === 'number' ? r.score.toFixed(3) : '';
-          const metaParts = [city, state].filter(Boolean).join(', ');
+          const metaParts = [city, state, categories].filter(Boolean).join(' · ');
           const starStr = stars ? ` &middot; ${stars}&#9733;` : '';
 
           return `<div class="vector-card">

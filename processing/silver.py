@@ -332,6 +332,8 @@ def main() -> None:
     log.info("Silver layer starting up...")
 
     spark: SparkSession = create_spark_session("YelpSilver")
+    # Allow multiple stateful operators (watermark + dropDuplicatesWithinWatermark after join)
+    spark.conf.set("spark.sql.streaming.statefulOperator.allowMultiple", "true")
 
     try:
         biz_df = _build_business_stream(spark)

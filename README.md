@@ -179,6 +179,10 @@ docker compose -f ../portfolio-platform-commons/src/platform_commons/docker/dock
 infra-up
 python -m infra
 
+#or
+docker compose -f ../portfolio-platform-commons/src/platform_commons/docker/docker-compose.yml down && docker compose -f ../portfolio-platform-commons/src/platform_commons/docker/docker-compose.yml up -d --force-recreate
+python -m infra
+
 # Step 4 — re-run the pipeline from the top (terminals 1–4 in Running the Pipeline)
 ```
 

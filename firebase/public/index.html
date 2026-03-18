@@ -140,8 +140,77 @@
     .welcome-sub {
       font-size: 14px;
       color: #888;
-      max-width: 420px;
+      max-width: 480px;
       line-height: 1.6;
+    }
+
+    .welcome-hints {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 520px;
+      width: 100%;
+    }
+
+    .hint-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      text-align: left;
+    }
+
+    .hint-label {
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      min-width: 52px;
+      flex-shrink: 0;
+      padding-top: 5px;
+      opacity: 0.7;
+    }
+
+    .hint-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .pill {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #aaa;
+      padding: 5px 12px;
+      border-radius: 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      backdrop-filter: blur(4px);
+    }
+    .pill:hover {
+      border-color: rgba(0, 212, 255, 0.4);
+      color: #ddd;
+      background: rgba(0, 212, 255, 0.06);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 212, 255, 0.1);
+    }
+    .pill.selected {
+      border-color: var(--accent);
+      color: #fff;
+      background: rgba(0, 212, 255, 0.15);
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.2), inset 0 0 8px rgba(0, 212, 255, 0.05);
+    }
+    [data-type="category"] { border-color: rgba(139, 92, 246, 0.15); }
+    [data-type="category"]:hover {
+      border-color: rgba(139, 92, 246, 0.4);
+      background: rgba(139, 92, 246, 0.06);
+      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.1);
+    }
+    [data-type="category"].selected {
+      border-color: var(--accent-purple);
+      background: rgba(139, 92, 246, 0.15);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.2), inset 0 0 8px rgba(139, 92, 246, 0.05);
     }
 
     /* ── Chips ── */
@@ -787,11 +856,11 @@
     <div class="drawer-body">
 
       <p class="drawer-pitch">
-        A <strong>real-time dual-pipeline</strong> platform that ingests 1M+ Yelp reviews through
-        Redpanda, processes them with PySpark Structured Streaming (Bronze → Silver → Gold), and
-        sinks simultaneously into <strong>BigQuery</strong> (SQL analytics) and <strong>Qdrant</strong>
-        (768-dim semantic vectors). A <strong>LangGraph multi-agent router</strong> classifies each
-        question and dispatches to the right pipeline — or both — for hybrid answers.
+        A real-time streaming platform that builds the <strong>data infrastructure AI agents need</strong>.
+        1M+ Yelp reviews flow through Kafka into a PySpark <strong>medallion pipeline</strong>
+        (Bronze → Silver → Gold), landing in two sinks: <strong>BigQuery</strong> for structured analytics
+        and <strong>Qdrant</strong> for 768-dim semantic search. A <strong>LangGraph agent</strong> decides
+        which sink answers each question — SQL, vector, or both.
       </p>
 
       <!-- Architecture -->
@@ -801,7 +870,7 @@
           <div class="arch-row">
             <span class="arch-node source">Yelp JSON</span>
             <span class="arch-arrow">&#8594;</span>
-            <span class="arch-node broker">Redpanda</span>
+            <span class="arch-node broker">Kafka</span>
             <span class="arch-arrow">&#8594;</span>
             <span class="arch-node spark">PySpark Bronze</span>
           </div>
@@ -832,7 +901,7 @@
         <div class="stack-grid">
           <div class="stack-row">
             <span class="stack-label">Streaming</span>
-            <span class="stack-value">Redpanda (Kafka), PySpark</span>
+            <span class="stack-value">Kafka, PySpark</span>
           </div>
           <div class="stack-row">
             <span class="stack-label">Structured Store</span>
@@ -874,12 +943,12 @@
             <p>LangGraph flat graph with explicit SQL / VECTOR / HYBRID routing. Deterministic, debuggable, and cheap — no free-form ReAct loops for classification.</p>
           </div>
           <div class="highlight-card">
-            <h4>Zero-Cost Production Deployment</h4>
-            <p>Runs entirely on GCP free tier: e2-micro VM, BigQuery Sandbox, Gemini free-tier APIs. Designed to demonstrate cost engineering alongside technical depth.</p>
+            <h4>Dual-Sink Design with Vector Search</h4>
+            <p>A single streaming job fans out to BigQuery (structured analytics) and Qdrant (semantic search) independently. 768-dim Gemini embeddings enable similarity search over 1M+ reviews — the AI layer queries both sinks, not just one.</p>
           </div>
           <div class="highlight-card">
-            <h4>Enterprise Team Boundaries</h4>
-            <p>Infra team (schema registry, Hive metastore) and DE team (pipeline) modeled as separate codebases with no cross-imports — mirrors real org structures.</p>
+            <h4>Zero-Cost Production Deployment</h4>
+            <p>Runs entirely on GCP free tier: e2-micro VM, BigQuery Sandbox, Gemini free-tier APIs. Engineering within constraints, not throwing money at problems.</p>
           </div>
         </div>
       </div>
@@ -897,22 +966,42 @@
   <!-- ── Chat Area ── -->
   <div id="chat">
     <div id="welcome">
-      <div class="welcome-icon">&#127850;</div>
       <h2 class="welcome-heading">Ask anything about Yelp businesses</h2>
-      <p class="welcome-sub">
-        Powered by a real-time streaming pipeline — 1M+ reviews indexed in BigQuery and Qdrant.
-        Ask for stats, vibes, or a mix of both.
-      </p>
+      <p class="welcome-sub">1M+ reviews across 10 cities. Tap a city or category to build a query.</p>
+
+      <div class="welcome-hints">
+        <div class="hint-row">
+          <span class="hint-label">Cities</span>
+          <div class="hint-pills">
+            <button class="pill" data-type="city">Philadelphia</button>
+            <button class="pill" data-type="city">Tucson</button>
+            <button class="pill" data-type="city">Tampa</button>
+            <button class="pill" data-type="city">Nashville</button>
+            <button class="pill" data-type="city">New Orleans</button>
+            <button class="pill" data-type="city">Indianapolis</button>
+            <button class="pill" data-type="city">Reno</button>
+            <button class="pill" data-type="city">Santa Barbara</button>
+          </div>
+        </div>
+        <div class="hint-row">
+          <span class="hint-label">Types</span>
+          <div class="hint-pills">
+            <button class="pill" data-type="category">Italian</button>
+            <button class="pill" data-type="category">Pizza</button>
+            <button class="pill" data-type="category">Coffee &amp; Tea</button>
+            <button class="pill" data-type="category">Bars</button>
+            <button class="pill" data-type="category">Seafood</button>
+            <button class="pill" data-type="category">Breakfast &amp; Brunch</button>
+            <button class="pill" data-type="category">Nightlife</button>
+            <button class="pill" data-type="category">Sandwiches</button>
+          </div>
+        </div>
+      </div>
+
       <div class="chips">
-        <button class="chip" data-query="cozy Italian restaurants in Phoenix">
-          cozy Italian restaurants in Phoenix
-        </button>
-        <button class="chip" data-query="average rating for restaurants in Scottsdale">
-          average rating for restaurants in Scottsdale
-        </button>
-        <button class="chip" data-query="best restaurants in the top rated cities">
-          best restaurants in the top rated cities
-        </button>
+        <button class="chip" data-query="cozy Italian restaurants in New Orleans">cozy Italian in New Orleans</button>
+        <button class="chip" data-query="best pizza places in Philadelphia">best pizza in Philadelphia</button>
+        <button class="chip" data-query="average rating for bars in Nashville">avg rating for bars in Nashville</button>
       </div>
     </div>
   </div>
@@ -1222,6 +1311,44 @@
       chip.addEventListener('click', () => {
         const query = chip.dataset.query;
         if (query) sendQuery(query);
+      });
+    });
+
+    // Pill click handlers — build query from selected cities + categories (multi-select)
+    let selectedCities = [];
+    let selectedCategories = [];
+
+    function updateInputFromPills() {
+      const cats = selectedCategories.length > 0 ? selectedCategories.join(' or ') : '';
+      const cities = selectedCities.length > 0 ? selectedCities.join(', ') : '';
+
+      if (cats && cities) {
+        inputEl.value = `best ${cats} in ${cities}`;
+      } else if (cities) {
+        inputEl.value = `top rated restaurants in ${cities}`;
+      } else if (cats) {
+        inputEl.value = `best ${cats} restaurants`;
+      } else {
+        inputEl.value = '';
+      }
+      inputEl.focus();
+    }
+
+    document.querySelectorAll('.pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const type = pill.dataset.type;
+        const value = pill.textContent.trim();
+        const arr = type === 'city' ? selectedCities : selectedCategories;
+        const idx = arr.indexOf(value);
+
+        if (idx >= 0) {
+          arr.splice(idx, 1);
+          pill.classList.remove('selected');
+        } else {
+          arr.push(value);
+          pill.classList.add('selected');
+        }
+        updateInputFromPills();
       });
     });
 

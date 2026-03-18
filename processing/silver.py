@@ -45,7 +45,7 @@ SILVER_DB: str = settings.hive.SILVER_DB
 SILVER_CHECKPOINT: str = settings.spark.SILVER_CHECKPOINT
 
 WATERMARK_DELAY: str = "24 hours"
-MAX_FILES_PER_TRIGGER: int = 5
+MAX_FILES_PER_TRIGGER: int = 20
 
 
 # -----------------------

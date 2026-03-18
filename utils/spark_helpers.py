@@ -68,7 +68,7 @@ def start_table_sink(
     table_name: str,
     checkpoint_path: str,
     partition_cols: list[str],
-    trigger_interval: str = "30 seconds",
+    trigger_interval: str = "10 seconds",
 ) -> StreamingQuery:
     """Starts a streaming write to a Hive metastore table."""
 
@@ -94,7 +94,7 @@ def start_table_sink(
 def run_until_shutdown(
     queries: list[StreamingQuery],
     poll_seconds: int = 5,
-    progress_interval: int = 30,
+    progress_interval: int = 10,
 ) -> None:
     """Polls streaming queries until shutdown signal or query failure.
 

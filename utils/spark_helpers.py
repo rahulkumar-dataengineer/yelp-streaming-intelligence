@@ -16,8 +16,8 @@ log = Logger.get(__name__)
 def create_spark_session(
     app_name: str,
     extra_packages: list[str] | None = None,
-    master: str = "local[2]",
-    shuffle_partitions: int = 4,
+    master: str = "local[1]",
+    shuffle_partitions: int = 2,
     driver_memory: str = "1g",
 ) -> SparkSession:
     """Creates a Hive-enabled SparkSession with standard config."""
@@ -94,10 +94,18 @@ def start_table_sink(
 def run_until_shutdown(
     queries: list[StreamingQuery],
     poll_seconds: int = 5,
+    progress_interval: int = 30,
 ) -> None:
-    """Polls streaming queries until shutdown signal or query failure."""
+    """Polls streaming queries until shutdown signal or query failure.
 
-    log.info(f"Monitoring {len(queries)} query(ies). Polling every {poll_seconds}s.")
+    Logs progress metrics every *progress_interval* seconds so the operator
+    can see that the pipeline is alive and how fast it's moving.
+    """
+
+    log.info(f"Monitoring {len(queries)} query(ies). Polling every {poll_seconds}s, progress every {progress_interval}s.")
+
+    last_progress_log = time.time()
+    cumulative_rows: dict[str, int] = {q.name: 0 for q in queries}
 
     while get_running():
         for q in queries:
@@ -112,4 +120,56 @@ def run_until_shutdown(
                         other.stop()
                 return
 
+        # --- Progress logging ---
+        now = time.time()
+        if now - last_progress_log >= progress_interval:
+            for q in queries:
+                _log_query_progress(q, cumulative_rows)
+            last_progress_log = now
+
         time.sleep(poll_seconds)
+
+
+def _log_query_progress(
+    q: StreamingQuery,
+    cumulative_rows: dict[str, int],
+) -> None:
+    """Logs the latest progress of a single streaming query."""
+
+    progress = q.lastProgress
+    if not progress:
+        log.info(f"[{q.name}] Waiting for first batch...")
+        return
+
+    batch_id = progress.get("batchId", "?")
+    num_rows = progress.get("numInputRows", 0)
+    input_rps = progress.get("inputRowsPerSecond", 0)
+    proc_rps = progress.get("processedRowsPerSecond", 0)
+
+    cumulative_rows[q.name] = cumulative_rows.get(q.name, 0) + num_rows
+
+    # Source-specific offset info
+    sources = progress.get("sources", [])
+    offset_info = ""
+    for src in sources:
+        end_offset = src.get("endOffset")
+        if not end_offset or not isinstance(end_offset, dict):
+            continue
+        # Kafka offsets: {topic: {partition: offset}}
+        if all(isinstance(v, dict) for v in end_offset.values()):
+            parts = []
+            for topic, partitions in end_offset.items():
+                for part_id, offset in partitions.items():
+                    parts.append(f"{topic}[{part_id}]={offset}")
+            if parts:
+                offset_info = f" | offsets: {', '.join(parts)}"
+        # File source offsets: {"logOffset": N}
+        elif "logOffset" in end_offset:
+            offset_info = f" | fileOffset={end_offset['logOffset']}"
+
+    log.info(
+        f"[{q.name}] batch={batch_id} | rows={num_rows} | "
+        f"total={cumulative_rows[q.name]} | "
+        f"in={input_rps:.0f} rows/s | proc={proc_rps:.0f} rows/s"
+        f"{offset_info}"
+    )

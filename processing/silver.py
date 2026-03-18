@@ -330,13 +330,17 @@ def main() -> None:
 
     register_signal_handlers()
     log.info("Silver layer starting up...")
+    log.info(
+        f"Config: bronze_db={BRONZE_DB} | silver_db={SILVER_DB} | "
+        f"watermark={WATERMARK_DELAY} | maxFilesPerTrigger={MAX_FILES_PER_TRIGGER}"
+    )
 
     spark: SparkSession = create_spark_session("YelpSilver")
-    # Allow multiple stateful operators (watermark + dropDuplicatesWithinWatermark after join)
-    spark.conf.set("spark.sql.streaming.statefulOperator.allowMultiple", "true")
 
     try:
+        log.info("Building business stream from Bronze...")
         biz_df = _build_business_stream(spark)
+        log.info("Building review stream from Bronze...")
         rev_df = _build_review_stream(spark)
 
         # Watermark both streams for state management
@@ -353,9 +357,14 @@ def main() -> None:
             )
         )
 
+        # Note: dropDuplicatesWithinWatermark removed — Spark 3.5 has a state store bug
+        # with join + dedup (op=1 delta files never persist). Dedup is handled downstream:
+        # BigQuery dedup view (gold_reviews_deduped) + Qdrant deterministic UUIDs.
+        # The join state itself is watermark-bounded — no unbounded growth.
+
         # Resolve column conflicts and build Silver output
         silver_df: DataFrame = joined.select(
-            
+
             # Business fields
             col("biz.business_id").alias("business_id"),
             col("biz.name"),
@@ -367,23 +376,23 @@ def main() -> None:
             col("biz.review_count"),
             col("biz.is_open"),
             col("biz.categories"),
-            
+
             # 20 boolean attrs
             *[col(f"biz.{silver_col}") for _, silver_col in _BOOLEAN_ATTR_MAP],
-            
+
             # 5 parking
             *[col(f"biz.{silver_col}") for _, silver_col in _PARKING_KEY_MAP],
-            
+
             # 7 music
             *[col(f"biz.{silver_col}") for _, silver_col in _MUSIC_KEY_MAP],
-            
+
             # 5 string attrs + 1 integer attr
             *[col(f"biz.{silver_col}") for _, silver_col in _STRING_ATTR_MAP],
             col(f"biz.{Silver.RESTAURANTS_PRICE_RANGE}"),
-            
+
             # 7 hours
             *[col(f"biz.{silver_col}") for _, silver_col in _HOURS_MAP],
-            
+
             # Review fields
             col("rev.review_id"),
             col("rev.user_id"),
@@ -393,7 +402,7 @@ def main() -> None:
             col("rev.cool"),
             col("rev.text"),
             col("rev.date"),
-            
+
             # Metadata: take the later timestamp from both sides
             greatest(col("biz.ingestion_timestamp"), col("rev.ingestion_timestamp")).alias("ingestion_timestamp"),
             to_date(
@@ -401,13 +410,10 @@ def main() -> None:
             ).alias("ingestion_date"),
         )
 
-        # Dedup within the watermark window — bounded state, no unbounded growth.
-        # Cross-run duplicates (checkpoint reset) are handled by Gold's dedup VIEW.
-        silver_df = silver_df.dropDuplicatesWithinWatermark(["review_id"])
-
-        log.info(f"Silver DataFrame columns: {len(silver_df.columns)}")
+        log.info(f"Silver DataFrame built: {len(silver_df.columns)} columns, stream-stream join ready")
 
         silver_table = f"{SILVER_DB}.{SILVER_TABLE}"
+        log.info(f"Target table: {silver_table} | partitions=[state, ingestion_date]")
         query = start_table_sink(
             df=silver_df,
             query_name="silver_joined",

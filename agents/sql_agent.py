@@ -50,12 +50,22 @@ def _build_db() -> SQLDatabase:
 
 
 def _extract_sql_from_steps(intermediate_steps: list) -> str:
-    """Extracts the last SQL query from agent intermediate steps for transparency."""
+    """Extracts the last SQL query from agent intermediate steps for transparency.
+
+    Handles both legacy AgentAction (tool_input is a string) and tool-calling
+    agent format (tool_input may be a dict like {"query": "SELECT ..."}).
+    """
     for step in reversed(intermediate_steps):
         if hasattr(step, '__len__') and len(step) >= 2:
             action = step[0]
             if hasattr(action, 'tool') and action.tool == 'sql_db_query':
-                return action.tool_input if isinstance(action.tool_input, str) else str(action.tool_input)
+                tool_input = action.tool_input
+                if isinstance(tool_input, str):
+                    return tool_input
+                if isinstance(tool_input, dict):
+                    return tool_input.get("query", str(tool_input))
+                return str(tool_input)
+    log.warning(f"No sql_db_query found in {len(intermediate_steps)} intermediate steps")
     return ""
 
 
@@ -137,9 +147,17 @@ def run(state: AgentState) -> dict:
         intermediate_steps = result.get("intermediate_steps", [])
 
         log.info(f"SQL agent result length: {len(output)} chars")
+        tools_used = [
+            step[0].tool for step in intermediate_steps
+            if hasattr(step, '__len__') and len(step) >= 2 and hasattr(step[0], 'tool')
+        ]
+        log.info(f"SQL agent tools used: {tools_used}")
+
+        sql_query = _extract_sql_from_steps(intermediate_steps)
+        log.info(f"Extracted SQL query: {sql_query[:200] if sql_query else '(empty)'}")
 
         update = {
-            "sql_query": _extract_sql_from_steps(intermediate_steps),
+            "sql_query": sql_query,
             "sql_result": output,
         }
 

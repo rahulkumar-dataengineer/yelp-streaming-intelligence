@@ -138,7 +138,7 @@ def run(state: AgentState) -> dict:
             agent_type="tool-calling",
             verbose=False,
             prefix=system_prompt,
-            return_intermediate_steps=True,
+            agent_executor_kwargs={"return_intermediate_steps": True},
         )
 
         result = agent_executor.invoke({"input": query})

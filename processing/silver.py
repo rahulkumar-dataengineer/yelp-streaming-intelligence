@@ -45,7 +45,7 @@ SILVER_DB: str = settings.hive.SILVER_DB
 SILVER_CHECKPOINT: str = settings.spark.SILVER_CHECKPOINT
 
 WATERMARK_DELAY: str = "24 hours"
-MAX_FILES_PER_TRIGGER: int = 20
+MAX_FILES_PER_TRIGGER: int = 5
 
 
 # -----------------------
@@ -335,7 +335,7 @@ def main() -> None:
         f"watermark={WATERMARK_DELAY} | maxFilesPerTrigger={MAX_FILES_PER_TRIGGER}"
     )
 
-    spark: SparkSession = create_spark_session("YelpSilver")
+    spark: SparkSession = create_spark_session("YelpSilver", driver_memory="2g")
 
     try:
         log.info("Building business stream from Bronze...")

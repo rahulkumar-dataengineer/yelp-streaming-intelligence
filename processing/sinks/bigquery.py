@@ -143,6 +143,19 @@ class BatchSink:
             start = time.time()
 
             pandas_df = batch_df.select(Gold.BIGQUERY_SELECT).toPandas()
+
+            # Spark BooleanType with nulls → Pandas object dtype (bool
+            # can't hold None). pyarrow fails to infer the type, so cast
+            # these columns to nullable boolean explicitly.
+            for c in pandas_df.columns:
+                if pandas_df[c].dtype == "object":
+                    # Check if values are bool/None — cast to nullable bool
+                    sample = pandas_df[c].dropna().head(5)
+                    if len(sample) > 0 and all(isinstance(v, bool) for v in sample):
+                        pandas_df[c] = pandas_df[c].astype("boolean")
+                    else:
+                        pandas_df[c] = pandas_df[c].astype("string")
+
             record_count = len(pandas_df)
 
             job_id = self._bq.load_dataframe(pandas_df)

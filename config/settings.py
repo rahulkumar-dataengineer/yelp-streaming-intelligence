@@ -38,9 +38,14 @@ class GeminiSettings:
     EMBEDDING_DIMENSIONS: int = int(_optional("GEMINI_EMBEDDING_DIMENSIONS", "768"))
 
 
+class APISettings:
+    CORS_ORIGIN: str = _optional("CORS_ORIGIN", "*")
+
+
 class YelpSettings:
     BUSINESS_JSON_PATH: str = _require("YELP_BUSINESS_JSON_PATH")
     REVIEW_JSON_PATH: str = _require("YELP_REVIEW_JSON_PATH")
+    REVIEW_LIMIT: int = int(_optional("REVIEW_LIMIT", "1000000"))
 
 
 class KafkaSettings:
@@ -65,15 +70,22 @@ class SparkSettings:
     BRONZE_BUSINESS_CHECKPOINT: str = _optional("BRONZE_BUSINESS_CHECKPOINT", "checkpoints/bronze/businesses")
     BRONZE_REVIEW_CHECKPOINT: str = _optional("BRONZE_REVIEW_CHECKPOINT", "checkpoints/bronze/reviews")
     SILVER_CHECKPOINT: str = _optional("SILVER_CHECKPOINT", "checkpoints/silver")
+    GOLD_CHECKPOINT: str = _optional("GOLD_CHECKPOINT", "checkpoints/gold")
 
 
 class Settings:
     gcp    = GCPSettings()
     qdrant = QdrantSettings()
     gemini = GeminiSettings()
-    yelp   = YelpSettings()
+    api    = APISettings()
     kafka  = KafkaSettings()
     hive   = HiveSettings()
     spark  = SparkSettings()
+
+    @property
+    def yelp(self):
+        if not hasattr(self, '_yelp'):
+            self._yelp = YelpSettings()
+        return self._yelp
 
 settings = Settings()

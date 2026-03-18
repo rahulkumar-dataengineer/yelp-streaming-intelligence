@@ -94,6 +94,10 @@ def main() -> None:
 
     register_signal_handlers()
     log.info("Bronze layer starting up...")
+    log.info(
+        f"Config: bootstrap={BOOTSTRAP_SERVERS} | topics=[{BUSINESS_TOPIC}, {REVIEW_TOPIC}] | "
+        f"maxOffsetsPerTrigger={MAX_OFFSETS_PER_TRIGGER} | startingOffsets={STARTING_OFFSETS}"
+    )
 
     spark = create_spark_session(
         "YelpBronze",
@@ -103,6 +107,7 @@ def main() -> None:
     try:
         biz_table = f"{BRONZE_DB}.{BUSINESS_TABLE}"
         rev_table = f"{BRONZE_DB}.{REVIEW_TABLE}"
+        log.info(f"Target tables: {biz_table}, {rev_table}")
 
         biz_df = _build_kafka_stream(spark, BUSINESS_TOPIC, BUSINESS_AVRO_JSON)
         rev_df = _build_kafka_stream(spark, REVIEW_TOPIC, REVIEW_AVRO_JSON)

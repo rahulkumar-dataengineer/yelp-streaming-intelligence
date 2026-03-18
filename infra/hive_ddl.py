@@ -178,3 +178,26 @@ CREATE TABLE IF NOT EXISTS {db}.reviews (
 USING parquet
 PARTITIONED BY (state STRING, ingestion_date DATE)
 """
+
+
+#---------------------------------
+# SILVER — quarantine (raw review columns + reason)
+#---------------------------------
+
+SILVER_QUARANTINE_DDL = """\
+CREATE TABLE IF NOT EXISTS {db}.quarantine (
+    review_id STRING,
+    user_id STRING,
+    business_id STRING,
+    stars STRING,
+    useful STRING,
+    funny STRING,
+    cool STRING,
+    text STRING,
+    date STRING,
+    reason STRING,
+    quarantine_timestamp TIMESTAMP
+)
+USING parquet
+PARTITIONED BY (ingestion_date STRING)
+"""

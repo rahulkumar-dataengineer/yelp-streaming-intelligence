@@ -23,6 +23,8 @@ Yelp JSON (1M reviews)
 │  Bronze  →  Silver  →  Gold (foreachBatch) │
 │  Raw Avro   Cleaned +   Dual-sink         │
 │  Parquet    stream join  BigQuery+Qdrant  │
+│             ↓ reconcile                    │
+│          quarantine                        │
 └──────────────────────────────────────────┘
          │                    │
          ▼                    ▼
@@ -115,19 +117,27 @@ python -m processing.silver
 python -m processing.gold
 ```
 
-### 5. Verify sinks
+### 5. Data quality reconciliation (after Silver shows rows=0)
+
+```bash
+python -m processing.reconcile
+```
+
+This batch job anti-joins Bronze reviews against Silver reviews to find reviews that didn't match any business during the stream-stream join. Unmatched rows are written to `silver.quarantine` with a reason tag.
+
+### 6. Verify sinks
 
 ```bash
 python check_sinks.py
 ```
 
-### 6. Run the agent API
+### 7. Run the agent API
 
 ```bash
 python api.py
 ```
 
-### 7. Test the agent directly
+### 8. Test the agent directly
 
 ```bash
 python graph.py "find me cozy Italian restaurants in Phoenix"

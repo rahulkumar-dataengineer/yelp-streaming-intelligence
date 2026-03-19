@@ -1917,49 +1917,11 @@
       inputEl.style.height = `${Math.min(inputEl.scrollHeight, 160)}px`;
     });
 
-    // Chip click handlers
-    document.querySelectorAll('.chip').forEach(chip => {
+    /* ── Query chip click handlers ── */
+    document.querySelectorAll('.chip-query').forEach(chip => {
       chip.addEventListener('click', () => {
         const query = chip.dataset.query;
         if (query) sendQuery(query);
-      });
-    });
-
-    // Pill click handlers — build query from selected cities + categories (multi-select)
-    let selectedCities = [];
-    let selectedCategories = [];
-
-    function updateInputFromPills() {
-      const cats = selectedCategories.length > 0 ? selectedCategories.join(' or ') : '';
-      const cities = selectedCities.length > 0 ? selectedCities.join(', ') : '';
-
-      if (cats && cities) {
-        inputEl.value = `best ${cats} in ${cities}`;
-      } else if (cities) {
-        inputEl.value = `top rated restaurants in ${cities}`;
-      } else if (cats) {
-        inputEl.value = `best ${cats} restaurants`;
-      } else {
-        inputEl.value = '';
-      }
-      inputEl.focus();
-    }
-
-    document.querySelectorAll('.pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        const type = pill.dataset.type;
-        const value = pill.textContent.trim();
-        const arr = type === 'city' ? selectedCities : selectedCategories;
-        const idx = arr.indexOf(value);
-
-        if (idx >= 0) {
-          arr.splice(idx, 1);
-          pill.classList.remove('selected');
-        } else {
-          arr.push(value);
-          pill.classList.add('selected');
-        }
-        updateInputFromPills();
       });
     });
 
@@ -1968,6 +1930,9 @@
       document.getElementById('drawer').classList.add('open');
       document.getElementById('drawer-overlay').classList.add('open');
       document.body.style.overflow = 'hidden';
+      if (window.innerWidth <= 600) {
+        closeFilterSidebar();
+      }
     }
 
     function closeDrawer() {
@@ -1976,10 +1941,16 @@
       document.body.style.overflow = '';
     }
 
-    // Escape key closes drawer
+    // Escape key closes drawer and filter sidebar
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeDrawer();
+      if (e.key === 'Escape') {
+        closeDrawer();
+        closeFilterSidebar();
+      }
     });
+
+    /* ── Initialize filter pills on page load ── */
+    renderFilterPills();
   </script>
 
 </body>

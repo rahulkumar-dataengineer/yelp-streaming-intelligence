@@ -1550,6 +1550,96 @@
       headerEl.innerHTML = `${isExpanded ? '&#9654;' : '&#9660;'} ${FILTER_GROUPS[groupKey].label} (${FILTER_GROUPS[groupKey].pills.length})`;
     }
 
+    /* ── Generate Natural Language Query from Selections ── */
+    function generateFilterQuery() {
+      const cities = filterSelections.cities;
+      const categories = filterSelections.categories;
+      const ambiance = filterSelections.ambiance;
+      const price = filterSelections.price;
+      const amenities = filterSelections.amenities;
+      const parking = filterSelections.parking;
+      const music = filterSelections.music;
+      const hours = filterSelections.hours;
+      const moreAmenities = filterSelections['more-amenities'];
+
+      const withParts = [];
+      if (ambiance.length > 0) withParts.push(...ambiance.map(a => a.toLowerCase()));
+      if (amenities.length > 0) withParts.push(...amenities.map(a => a.toLowerCase()));
+      if (parking.length > 0) withParts.push(...parking.map(p => `${p.toLowerCase()} parking`));
+      if (music.length > 0) withParts.push(...music.map(m => `${m.toLowerCase()} music`));
+      if (moreAmenities.length > 0) withParts.push(...moreAmenities.map(a => a.toLowerCase()));
+      if (price.length > 0) withParts.push(...price.map(p => `${p} price range`));
+
+      const hourParts = hours.map(h => `open on ${h}s`);
+
+      const catPhrase = categories.length > 0 ? categories.join(' or ') : '';
+      const cityPhrase = cities.length > 0 ? cities.join(', ') : '';
+
+      const totalParts = (catPhrase ? 1 : 0) + (cityPhrase ? 1 : 0) + withParts.length + hourParts.length;
+
+      if (totalParts === 0) return '';
+
+      if (totalParts >= 5) {
+        const allParts = [];
+        if (catPhrase) allParts.push(catPhrase);
+        allParts.push(...withParts);
+        allParts.push(...hourParts);
+        const base = cityPhrase ? `restaurants in ${cityPhrase}` : 'restaurants';
+        return `${base} — ${allParts.join(', ')}`;
+      }
+
+      let query = '';
+
+      if (catPhrase && cityPhrase) {
+        query = `best ${catPhrase} in ${cityPhrase}`;
+      } else if (cityPhrase) {
+        query = `top rated restaurants in ${cityPhrase}`;
+      } else if (catPhrase) {
+        query = `best ${catPhrase} restaurants`;
+      } else {
+        query = 'restaurants';
+      }
+
+      const allQualifiers = [...withParts, ...hourParts];
+      if (allQualifiers.length > 0) {
+        query += ` with ${allQualifiers.join(' and ')}`;
+      }
+
+      return query;
+    }
+
+    /* ── Update Query Preview in Sidebar ── */
+    function updateFilterQueryPreview() {
+      const query = generateFilterQuery();
+      const previewEl = document.getElementById('filter-query-preview');
+      const textEl = document.getElementById('filter-query-text');
+
+      if (query) {
+        textEl.textContent = query;
+        previewEl.style.display = 'block';
+        inputEl.value = query;
+      } else {
+        previewEl.style.display = 'none';
+        inputEl.value = '';
+      }
+    }
+
+    /* ── Send query from sidebar ── */
+    function sendFilterQuery() {
+      const query = generateFilterQuery();
+      if (query) {
+        sendQuery(query);
+        clearAllFilters();
+      }
+    }
+
+    /* ── Clear all filter selections ── */
+    function clearAllFilters() {
+      Object.keys(filterSelections).forEach(key => { filterSelections[key] = []; });
+      document.querySelectorAll('.filter-pill.selected').forEach(el => el.classList.remove('selected'));
+      updateFilterQueryPreview();
+    }
+
     /* ── DOM References ── */
     const chatEl = document.getElementById('chat');
     const inputEl = document.getElementById('input');

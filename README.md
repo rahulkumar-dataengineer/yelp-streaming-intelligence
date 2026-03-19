@@ -1,5 +1,7 @@
 # yelp-streaming-intelligence
 
+https://yelp-streaming-intelligence.web.app/
+
 Ask *"find me a cozy Italian spot on a rainy evening"* and get results backed by 1 million real Yelp reviews. A real-time streaming pipeline with a LangGraph multi-agent router that combines BigQuery SQL analytics and Qdrant semantic vector search.
 
 ## Architecture

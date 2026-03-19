@@ -1190,8 +1190,8 @@
     <button class="about-btn" onclick="openDrawer()">&#9776; About</button>
     <div class="header-title">
       <h1>Yelp Streaming Intelligence</h1>
-      <span>Real-time dual-pipeline · BigQuery + Qdrant · LangGraph</span>
     </div>
+    <button class="filters-btn" id="filters-btn" onclick="toggleFilterSidebar()">&#128269; Filters</button>
   </header>
 
   <!-- ── About Drawer ── -->
@@ -1308,6 +1308,62 @@
         &#9654; View on GitHub
       </a>
 
+    </div>
+  </aside>
+
+  <!-- ── Filter Sidebar ── -->
+  <div id="filter-overlay" onclick="closeFilterSidebar()"></div>
+  <aside id="filter-sidebar" role="dialog" aria-label="Filter sidebar">
+    <div class="filter-header">
+      <h3>Explore Filters</h3>
+      <button class="drawer-close" onclick="closeFilterSidebar()" aria-label="Close">&#215;</button>
+    </div>
+    <div class="filter-body" id="filter-body">
+      <!-- Tier 1: Cities -->
+      <div>
+        <div class="filter-group-label cyan">Cities</div>
+        <div class="filter-pills" id="pills-cities"></div>
+      </div>
+      <!-- Tier 1: Categories -->
+      <div>
+        <div class="filter-group-label purple">Categories</div>
+        <div class="filter-pills" id="pills-categories"></div>
+      </div>
+      <!-- Tier 1: Ambiance -->
+      <div>
+        <div class="filter-group-label amber">Ambiance</div>
+        <div class="filter-pills" id="pills-ambiance"></div>
+      </div>
+      <!-- Tier 1: Price Range -->
+      <div>
+        <div class="filter-group-label green">Price Range</div>
+        <div class="filter-pills" id="pills-price"></div>
+      </div>
+      <!-- Tier 1: Amenities -->
+      <div>
+        <div class="filter-group-label pink">Amenities</div>
+        <div class="filter-pills" id="pills-amenities"></div>
+      </div>
+      <!-- Tier 2: Collapsed groups -->
+      <div class="filter-tier2-divider">
+        <div class="filter-tier2-header" onclick="toggleTier2('parking')">&#9654; Parking (5)</div>
+        <div class="filter-tier2-pills" id="pills-parking"></div>
+        <div class="filter-tier2-header" onclick="toggleTier2('music')">&#9654; Music (7)</div>
+        <div class="filter-tier2-pills" id="pills-music"></div>
+        <div class="filter-tier2-header" onclick="toggleTier2('hours')">&#9654; Hours (7)</div>
+        <div class="filter-tier2-pills" id="pills-hours"></div>
+        <div class="filter-tier2-header" onclick="toggleTier2('more-amenities')">&#9654; More Amenities (11)</div>
+        <div class="filter-tier2-pills" id="pills-more-amenities"></div>
+      </div>
+    </div>
+    <!-- Sticky query preview -->
+    <div class="filter-query-preview" id="filter-query-preview" style="display:none;">
+      <div class="filter-query-label">Generated query:</div>
+      <div class="filter-query-text" id="filter-query-text"></div>
+      <div class="filter-query-actions">
+        <button class="filter-send-btn" onclick="sendFilterQuery()">Send Query</button>
+        <button class="filter-clear-btn" onclick="clearAllFilters()">Clear</button>
+      </div>
     </div>
   </aside>
 

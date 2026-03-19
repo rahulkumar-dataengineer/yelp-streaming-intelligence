@@ -1430,6 +1430,126 @@
     let isLoading = false;
     let welcomeHidden = false;
 
+    /* ── Filter Sidebar State ── */
+    let filterSidebarOpen = false;
+    const filterSelections = {};
+
+    /* ── Filter Data Definitions ── */
+    const FILTER_GROUPS = {
+      cities: {
+        label: 'Cities', color: 'cyan', tier: 1,
+        pills: ['Philadelphia', 'Tucson', 'Tampa', 'Nashville', 'New Orleans', 'Indianapolis', 'Reno', 'Santa Barbara']
+      },
+      categories: {
+        label: 'Categories', color: 'purple', tier: 1,
+        pills: ['Italian', 'Pizza', 'Coffee & Tea', 'Bars', 'Seafood', 'Breakfast & Brunch', 'Nightlife', 'Sandwiches']
+      },
+      ambiance: {
+        label: 'Ambiance', color: 'amber', tier: 1,
+        pills: ['Full Bar', 'Beer & Wine', 'Quiet', 'Loud', 'Free WiFi', 'No Smoking']
+      },
+      price: {
+        label: 'Price Range', color: 'green', tier: 1,
+        pills: ['$', '$$', '$$$', '$$$$']
+      },
+      amenities: {
+        label: 'Amenities', color: 'pink', tier: 1,
+        pills: ['Outdoor Seating', 'Delivery', 'Good for Kids', 'Reservations', 'Good for Groups', 'Dogs Allowed']
+      },
+      parking: {
+        label: 'Parking', color: 'pink', tier: 2,
+        pills: ['Garage', 'Street', 'Validated', 'Lot', 'Valet']
+      },
+      music: {
+        label: 'Music', color: 'amber', tier: 2,
+        pills: ['DJ', 'Background', 'No Music', 'Jukebox', 'Live', 'Video', 'Karaoke']
+      },
+      hours: {
+        label: 'Hours', color: 'cyan', tier: 2,
+        pills: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+      },
+      'more-amenities': {
+        label: 'More Amenities', color: 'pink', tier: 2,
+        pills: ['Bike Parking', 'Credit Cards', 'Bitcoin', 'Drive Thru', 'Has TV', 'Table Service', 'Take Out', 'Wheelchair Accessible', 'Open 24 Hours', 'By Appointment Only', 'BYOB']
+      }
+    };
+
+    Object.keys(FILTER_GROUPS).forEach(key => { filterSelections[key] = []; });
+
+    /* ── Filter Sidebar Toggle ── */
+    function openFilterSidebar() {
+      document.getElementById('filter-sidebar').classList.add('open');
+      document.getElementById('filter-overlay').classList.add('open');
+      document.getElementById('filters-btn').classList.add('active');
+      filterSidebarOpen = true;
+
+      if (window.innerWidth <= 600) {
+        closeDrawer();
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    function closeFilterSidebar() {
+      document.getElementById('filter-sidebar').classList.remove('open');
+      document.getElementById('filter-overlay').classList.remove('open');
+      document.getElementById('filters-btn').classList.remove('active');
+      filterSidebarOpen = false;
+
+      if (!document.getElementById('drawer').classList.contains('open')) {
+        document.body.style.overflow = '';
+      }
+    }
+
+    function toggleFilterSidebar() {
+      if (filterSidebarOpen) {
+        closeFilterSidebar();
+      } else {
+        openFilterSidebar();
+      }
+    }
+
+    /* ── Render Filter Pills ── */
+    function renderFilterPills() {
+      Object.entries(FILTER_GROUPS).forEach(([groupKey, group]) => {
+        const container = document.getElementById(`pills-${groupKey}`);
+        if (!container) return;
+        container.innerHTML = '';
+        group.pills.forEach(pillLabel => {
+          const btn = document.createElement('button');
+          btn.className = `filter-pill ${group.color}`;
+          btn.textContent = pillLabel;
+          btn.addEventListener('click', () => toggleFilterPill(groupKey, pillLabel, btn));
+          container.appendChild(btn);
+        });
+      });
+    }
+
+    /* ── Toggle Filter Pill Selection ── */
+    function toggleFilterPill(groupKey, value, btnEl) {
+      const arr = filterSelections[groupKey];
+      const idx = arr.indexOf(value);
+
+      if (idx >= 0) {
+        arr.splice(idx, 1);
+        btnEl.classList.remove('selected');
+      } else {
+        arr.push(value);
+        btnEl.classList.add('selected');
+      }
+
+      updateFilterQueryPreview();
+    }
+
+    /* ── Tier 2 Accordion Toggle ── */
+    function toggleTier2(groupKey) {
+      const pillsEl = document.getElementById(`pills-${groupKey}`);
+      const headerEl = pillsEl.previousElementSibling;
+      const isExpanded = pillsEl.classList.contains('expanded');
+
+      pillsEl.classList.toggle('expanded', !isExpanded);
+      headerEl.innerHTML = `${isExpanded ? '&#9654;' : '&#9660;'} ${FILTER_GROUPS[groupKey].label} (${FILTER_GROUPS[groupKey].pills.length})`;
+    }
+
     /* ── DOM References ── */
     const chatEl = document.getElementById('chat');
     const inputEl = document.getElementById('input');

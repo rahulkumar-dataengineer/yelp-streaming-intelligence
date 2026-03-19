@@ -1371,41 +1371,38 @@
   <div id="chat">
     <div id="welcome">
       <h2 class="welcome-heading">Ask anything about Yelp businesses</h2>
-      <p class="welcome-sub">1M+ reviews across 10 cities. Tap a city or category to build a query.</p>
+      <p class="welcome-sub">1M+ reviews across 10 cities. Tap a query or explore filters to get started.</p>
+      <p class="welcome-ai-note">Every answer shows how the AI reasoned — explore the SQL, vector matches, and routing behind each response.</p>
+      <span class="welcome-filter-hint" onclick="openFilterSidebar()">Explore filters &rarr; cities, ambiance, parking, music &amp; more</span>
 
-      <div class="welcome-hints">
-        <div class="hint-row">
-          <span class="hint-label">Cities</span>
-          <div class="hint-pills">
-            <button class="pill" data-type="city">Philadelphia</button>
-            <button class="pill" data-type="city">Tucson</button>
-            <button class="pill" data-type="city">Tampa</button>
-            <button class="pill" data-type="city">Nashville</button>
-            <button class="pill" data-type="city">New Orleans</button>
-            <button class="pill" data-type="city">Indianapolis</button>
-            <button class="pill" data-type="city">Reno</button>
-            <button class="pill" data-type="city">Santa Barbara</button>
+      <div class="welcome-chip-groups">
+        <!-- Vibe / Vector -->
+        <div class="chip-group-row">
+          <div class="chip-group-tag">
+            <div class="chip-group-tag-label vibe">Vibe</div>
+            <div class="chip-group-tag-sub vibe">vector search</div>
           </div>
+          <button class="chip-query vibe" data-query="romantic rooftop dining with a quiet ambiance">romantic rooftop dining with a quiet ambiance</button>
+          <button class="chip-query vibe" data-query="cozy cafes perfect for working all day">cozy cafes perfect for working all day</button>
         </div>
-        <div class="hint-row">
-          <span class="hint-label">Types</span>
-          <div class="hint-pills">
-            <button class="pill" data-type="category">Italian</button>
-            <button class="pill" data-type="category">Pizza</button>
-            <button class="pill" data-type="category">Coffee &amp; Tea</button>
-            <button class="pill" data-type="category">Bars</button>
-            <button class="pill" data-type="category">Seafood</button>
-            <button class="pill" data-type="category">Breakfast &amp; Brunch</button>
-            <button class="pill" data-type="category">Nightlife</button>
-            <button class="pill" data-type="category">Sandwiches</button>
+        <!-- Data / SQL -->
+        <div class="chip-group-row">
+          <div class="chip-group-tag">
+            <div class="chip-group-tag-label data">Data</div>
+            <div class="chip-group-tag-sub data">structured sql</div>
           </div>
+          <button class="chip-query data" data-query="top 5 cities by average restaurant rating">top 5 cities by average restaurant rating</button>
+          <button class="chip-query data" data-query="percentage of restaurants with outdoor seating by city">percentage of restaurants with outdoor seating by city</button>
         </div>
-      </div>
-
-      <div class="chips">
-        <button class="chip" data-query="cozy Italian restaurants in New Orleans">cozy Italian in New Orleans</button>
-        <button class="chip" data-query="best pizza places in Philadelphia">best pizza in Philadelphia</button>
-        <button class="chip" data-query="average rating for bars in Nashville">avg rating for bars in Nashville</button>
+        <!-- Both / Hybrid -->
+        <div class="chip-group-row">
+          <div class="chip-group-tag">
+            <div class="chip-group-tag-label both"><span>Both</span></div>
+            <div class="chip-group-tag-sub both">hybrid search</div>
+          </div>
+          <button class="chip-query both" data-query="family-friendly seafood places open on Sundays">family-friendly seafood places open on Sundays</button>
+          <button class="chip-query both" data-query="highly rated brunch spots with free wifi and delivery">highly rated brunch spots with free wifi and delivery</button>
+        </div>
       </div>
     </div>
   </div>

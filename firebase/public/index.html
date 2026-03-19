@@ -71,13 +71,6 @@
       text-align: center;
     }
 
-    .header-title span {
-      font-size: 11px;
-      color: var(--accent);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-
     .about-btn {
       background: none;
       border: 1px solid var(--card-border);
@@ -1064,7 +1057,6 @@
       header { padding: 0 12px; }
 
       .header-title h1 { font-size: 14px; }
-      .header-title span { font-size: 10px; }
 
       #chat { padding: 16px 12px 12px; }
 
@@ -1334,6 +1326,16 @@
     let isLoading = false;
     let welcomeHidden = false;
 
+    /* ── DOM References ── */
+    const chatEl = document.getElementById('chat');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('send-btn');
+    const welcomeEl = document.getElementById('welcome');
+    const filterSidebarEl = document.getElementById('filter-sidebar');
+    const filterOverlayEl = document.getElementById('filter-overlay');
+    const filtersBtnEl = document.getElementById('filters-btn');
+    const drawerEl = document.getElementById('drawer');
+
     /* ── Filter Sidebar State ── */
     let filterSidebarOpen = false;
     const filterSelections = {};
@@ -1382,10 +1384,10 @@
 
     /* ── Filter Sidebar Toggle ── */
     function openFilterSidebar() {
-      document.getElementById('filter-sidebar').classList.add('open');
-      document.getElementById('filter-overlay').classList.add('open');
-      document.getElementById('filters-btn').classList.add('active');
-      document.getElementById('filters-btn').innerHTML = '&#128269; Filters &#215;';
+      filterSidebarEl.classList.add('open');
+      filterOverlayEl.classList.add('open');
+      filtersBtnEl.classList.add('active');
+      filtersBtnEl.innerHTML = '&#128269; Filters &#215;';
       filterSidebarOpen = true;
 
       if (window.innerWidth <= 600) {
@@ -1395,13 +1397,13 @@
     }
 
     function closeFilterSidebar() {
-      document.getElementById('filter-sidebar').classList.remove('open');
-      document.getElementById('filter-overlay').classList.remove('open');
-      document.getElementById('filters-btn').classList.remove('active');
-      document.getElementById('filters-btn').innerHTML = '&#128269; Filters';
+      filterSidebarEl.classList.remove('open');
+      filterOverlayEl.classList.remove('open');
+      filtersBtnEl.classList.remove('active');
+      filtersBtnEl.innerHTML = '&#128269; Filters';
       filterSidebarOpen = false;
 
-      if (!document.getElementById('drawer').classList.contains('open')) {
+      if (!drawerEl.classList.contains('open')) {
         document.body.style.overflow = '';
       }
     }
@@ -1536,6 +1538,7 @@
       if (query) {
         sendQuery(query);
         clearAllFilters();
+        closeFilterSidebar();
       }
     }
 
@@ -1545,12 +1548,6 @@
       document.querySelectorAll('.filter-pill.selected').forEach(el => el.classList.remove('selected'));
       updateFilterQueryPreview();
     }
-
-    /* ── DOM References ── */
-    const chatEl = document.getElementById('chat');
-    const inputEl = document.getElementById('input');
-    const sendBtn = document.getElementById('send-btn');
-    const welcomeEl = document.getElementById('welcome');
 
     /* ── Utility: strip route footer from answer text ── */
     function stripRouteFooter(text) {

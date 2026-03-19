@@ -22,6 +22,9 @@
       --error: #ff4444;
       --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      --filter-amber: #f59e0b;
+      --filter-green: #10b981;
+      --filter-pink: #ec4899;
     }
 
     /* ── Reset & Base ── */
@@ -66,13 +69,6 @@
       color: var(--text-heading);
       line-height: 1.2;
       text-align: center;
-    }
-
-    .header-title span {
-      font-size: 11px;
-      color: var(--accent);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
     }
 
     .about-btn {
@@ -142,101 +138,6 @@
       color: #888;
       max-width: 480px;
       line-height: 1.6;
-    }
-
-    .welcome-hints {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      max-width: 520px;
-      width: 100%;
-    }
-
-    .hint-row {
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-      text-align: left;
-    }
-
-    .hint-label {
-      color: var(--accent);
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      min-width: 52px;
-      flex-shrink: 0;
-      padding-top: 5px;
-      opacity: 0.7;
-    }
-
-    .hint-pills {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-    }
-
-    .pill {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #aaa;
-      padding: 5px 12px;
-      border-radius: 14px;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.25s ease;
-      backdrop-filter: blur(4px);
-    }
-    .pill:hover {
-      border-color: rgba(0, 212, 255, 0.4);
-      color: #ddd;
-      background: rgba(0, 212, 255, 0.06);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(0, 212, 255, 0.1);
-    }
-    .pill.selected {
-      border-color: var(--accent);
-      color: #fff;
-      background: rgba(0, 212, 255, 0.15);
-      box-shadow: 0 0 12px rgba(0, 212, 255, 0.2), inset 0 0 8px rgba(0, 212, 255, 0.05);
-    }
-    [data-type="category"] { border-color: rgba(139, 92, 246, 0.15); }
-    [data-type="category"]:hover {
-      border-color: rgba(139, 92, 246, 0.4);
-      background: rgba(139, 92, 246, 0.06);
-      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.1);
-    }
-    [data-type="category"].selected {
-      border-color: var(--accent-purple);
-      background: rgba(139, 92, 246, 0.15);
-      box-shadow: 0 0 12px rgba(139, 92, 246, 0.2), inset 0 0 8px rgba(139, 92, 246, 0.05);
-    }
-
-    /* ── Chips ── */
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      max-width: 600px;
-    }
-
-    .chip {
-      background: var(--card);
-      border: 1px solid var(--card-border);
-      color: var(--text);
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: border-color 0.2s, color 0.2s, background 0.2s;
-    }
-
-    .chip:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: rgba(0, 212, 255, 0.06);
     }
 
     /* ── Message Bubbles ── */
@@ -813,12 +714,349 @@
       color: var(--accent);
     }
 
+    /* ── Filter Sidebar ── */
+    #filter-sidebar {
+      position: fixed;
+      top: 0;
+      right: -300px;
+      width: 300px;
+      max-width: 100vw;
+      height: 100vh;
+      background: var(--card);
+      border-left: 1px solid var(--card-border);
+      z-index: 101;
+      transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #filter-sidebar.open {
+      right: 0;
+    }
+
+    .filter-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--card-border);
+      flex-shrink: 0;
+    }
+
+    .filter-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-heading);
+    }
+
+    .filter-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .filter-body::-webkit-scrollbar { width: 5px; }
+    .filter-body::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 3px; }
+
+    .filter-group-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .filter-group-label.cyan { color: var(--accent); }
+    .filter-group-label.purple { color: var(--accent-purple); }
+    .filter-group-label.amber { color: var(--filter-amber); }
+    .filter-group-label.green { color: var(--filter-green); }
+    .filter-group-label.pink { color: var(--filter-pink); }
+
+    .filter-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .filter-pill {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #aaa;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .filter-pill:hover {
+      color: #ddd;
+      transform: translateY(-1px);
+    }
+
+    .filter-pill.cyan { border-color: rgba(0, 212, 255, 0.15); }
+    .filter-pill.cyan:hover { border-color: rgba(0, 212, 255, 0.4); background: rgba(0, 212, 255, 0.06); }
+    .filter-pill.cyan.selected { border-color: var(--accent); color: #fff; background: rgba(0, 212, 255, 0.15); box-shadow: 0 0 12px rgba(0, 212, 255, 0.2); }
+
+    .filter-pill.purple { border-color: rgba(139, 92, 246, 0.15); }
+    .filter-pill.purple:hover { border-color: rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.06); }
+    .filter-pill.purple.selected { border-color: var(--accent-purple); color: #fff; background: rgba(139, 92, 246, 0.15); box-shadow: 0 0 12px rgba(139, 92, 246, 0.2); }
+
+    .filter-pill.amber { border-color: rgba(245, 158, 11, 0.15); }
+    .filter-pill.amber:hover { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.06); }
+    .filter-pill.amber.selected { border-color: var(--filter-amber); color: #fff; background: rgba(245, 158, 11, 0.15); box-shadow: 0 0 12px rgba(245, 158, 11, 0.2); }
+
+    .filter-pill.green { border-color: rgba(16, 185, 129, 0.15); }
+    .filter-pill.green:hover { border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.06); }
+    .filter-pill.green.selected { border-color: var(--filter-green); color: #fff; background: rgba(16, 185, 129, 0.15); box-shadow: 0 0 12px rgba(16, 185, 129, 0.2); }
+
+    .filter-pill.pink { border-color: rgba(236, 72, 153, 0.15); }
+    .filter-pill.pink:hover { border-color: rgba(236, 72, 153, 0.4); background: rgba(236, 72, 153, 0.06); }
+    .filter-pill.pink.selected { border-color: var(--filter-pink); color: #fff; background: rgba(236, 72, 153, 0.15); box-shadow: 0 0 12px rgba(236, 72, 153, 0.2); }
+
+    .filter-tier2-divider {
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 12px;
+    }
+
+    .filter-tier2-header {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      padding: 4px 0;
+      transition: color 0.2s;
+      user-select: none;
+    }
+
+    .filter-tier2-header:hover {
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .filter-tier2-pills {
+      display: none;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding-top: 6px;
+    }
+
+    .filter-tier2-pills.expanded {
+      display: flex;
+    }
+
+    .filter-query-preview {
+      flex-shrink: 0;
+      padding: 12px 18px;
+      border-top: 1px solid var(--card-border);
+      background: var(--card);
+    }
+
+    .filter-query-label {
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.3);
+      margin-bottom: 6px;
+    }
+
+    .filter-query-text {
+      padding: 6px 10px;
+      background: rgba(0, 212, 255, 0.05);
+      border: 1px solid rgba(0, 212, 255, 0.15);
+      border-radius: 6px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 8px;
+      min-height: 28px;
+      word-wrap: break-word;
+    }
+
+    .filter-query-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .filter-send-btn {
+      flex: 1;
+      text-align: center;
+      padding: 6px;
+      background: rgba(0, 212, 255, 0.15);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 6px;
+      font-size: 10px;
+      color: var(--accent);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .filter-send-btn:hover {
+      background: rgba(0, 212, 255, 0.25);
+    }
+
+    .filter-clear-btn {
+      padding: 6px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      background: none;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .filter-clear-btn:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    #filter-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    #filter-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .filters-btn {
+      background: none;
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+
+    .filters-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .filters-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(0, 212, 255, 0.08);
+    }
+
+    /* ── Welcome Query Chips (grouped by route type) ── */
+    .welcome-chip-groups {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chip-group-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chip-group-tag {
+      flex-shrink: 0;
+      text-align: center;
+      width: 80px;
+    }
+
+    .chip-group-tag-label {
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: bold;
+    }
+
+    .chip-group-tag-label.vibe {
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      color: var(--accent-purple);
+    }
+
+    .chip-group-tag-label.data {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: var(--badge-sql);
+    }
+
+    .chip-group-tag-label.both {
+      background: linear-gradient(90deg, rgba(0, 212, 255, 0.15), rgba(139, 92, 246, 0.15));
+      border: 1px solid rgba(0, 212, 255, 0.3);
+    }
+
+    .chip-group-tag-label.both span {
+      background: linear-gradient(90deg, var(--accent), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .chip-group-tag-sub {
+      font-size: 10px;
+      margin-top: 3px;
+    }
+
+    .chip-group-tag-sub.vibe { color: var(--filter-amber); }
+    .chip-group-tag-sub.data { color: var(--filter-amber); }
+    .chip-group-tag-sub.both { color: var(--filter-amber); }
+
+    .chip-query {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 20px;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .chip-query:hover {
+      color: rgba(255, 255, 255, 0.9);
+      transform: translateY(-1px);
+    }
+
+    .chip-query.vibe { border: 1px solid rgba(139, 92, 246, 0.15); }
+    .chip-query.vibe:hover { border-color: rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.06); }
+
+    .chip-query.data { border: 1px solid rgba(59, 130, 246, 0.15); }
+    .chip-query.data:hover { border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.06); }
+
+    .chip-query.both { border: 1px solid rgba(0, 212, 255, 0.12); }
+    .chip-query.both:hover { border-color: rgba(0, 212, 255, 0.4); background: rgba(0, 212, 255, 0.06); }
+
+    .welcome-filter-hint {
+      font-size: 13px;
+      color: rgba(0, 212, 255, 0.6);
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .welcome-filter-hint:hover {
+      color: var(--accent);
+    }
+
+    .welcome-ai-note {
+      font-size: 14px;
+      color: var(--filter-amber);
+      max-width: 480px;
+      line-height: 1.6;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 600px) {
       header { padding: 0 12px; }
 
       .header-title h1 { font-size: 14px; }
-      .header-title span { font-size: 10px; }
 
       #chat { padding: 16px 12px 12px; }
 
@@ -826,12 +1064,17 @@
 
       .welcome-heading { font-size: 18px; }
 
-      .chips { gap: 8px; }
-      .chip { font-size: 12px; padding: 6px 12px; }
 
       #drawer { width: 100vw; }
 
       .arch-row { font-size: 11px; }
+
+      #filter-sidebar { width: 100vw; right: -100vw; }
+
+      /* Stack query chips vertically on mobile, hide tags */
+      .chip-group-row { flex-direction: column; gap: 6px; }
+      .chip-group-tag { display: none; }
+      .chip-query { white-space: normal; text-align: center; }
     }
   </style>
 </head>
@@ -842,8 +1085,8 @@
     <button class="about-btn" onclick="openDrawer()">&#9776; About</button>
     <div class="header-title">
       <h1>Yelp Streaming Intelligence</h1>
-      <span>Real-time dual-pipeline · BigQuery + Qdrant · LangGraph</span>
     </div>
+    <button class="filters-btn" id="filters-btn" onclick="toggleFilterSidebar()">&#128269; Filters</button>
   </header>
 
   <!-- ── About Drawer ── -->
@@ -963,45 +1206,99 @@
     </div>
   </aside>
 
+  <!-- ── Filter Sidebar ── -->
+  <div id="filter-overlay" onclick="closeFilterSidebar()"></div>
+  <aside id="filter-sidebar" role="dialog" aria-label="Filter sidebar">
+    <div class="filter-header">
+      <h3>Explore Filters</h3>
+      <button class="drawer-close" onclick="closeFilterSidebar()" aria-label="Close">&#215;</button>
+    </div>
+    <div class="filter-body" id="filter-body">
+      <!-- Tier 1: Cities -->
+      <div>
+        <div class="filter-group-label cyan">Cities</div>
+        <div class="filter-pills" id="pills-cities"></div>
+      </div>
+      <!-- Tier 1: Categories -->
+      <div>
+        <div class="filter-group-label purple">Categories</div>
+        <div class="filter-pills" id="pills-categories"></div>
+      </div>
+      <!-- Tier 1: Ambiance -->
+      <div>
+        <div class="filter-group-label amber">Ambiance</div>
+        <div class="filter-pills" id="pills-ambiance"></div>
+      </div>
+      <!-- Tier 1: Price Range -->
+      <div>
+        <div class="filter-group-label green">Price Range</div>
+        <div class="filter-pills" id="pills-price"></div>
+      </div>
+      <!-- Tier 1: Amenities -->
+      <div>
+        <div class="filter-group-label pink">Amenities</div>
+        <div class="filter-pills" id="pills-amenities"></div>
+      </div>
+      <!-- Tier 2: Collapsed groups -->
+      <div class="filter-tier2-divider">
+        <div class="filter-tier2-header" onclick="toggleTier2('parking')">&#9654; Parking (5)</div>
+        <div class="filter-tier2-pills" id="pills-parking"></div>
+        <div class="filter-tier2-header" onclick="toggleTier2('music')">&#9654; Music (7)</div>
+        <div class="filter-tier2-pills" id="pills-music"></div>
+        <div class="filter-tier2-header" onclick="toggleTier2('hours')">&#9654; Hours (7)</div>
+        <div class="filter-tier2-pills" id="pills-hours"></div>
+        <div class="filter-tier2-header" onclick="toggleTier2('more-amenities')">&#9654; More Amenities (11)</div>
+        <div class="filter-tier2-pills" id="pills-more-amenities"></div>
+      </div>
+    </div>
+    <!-- Sticky query preview -->
+    <div class="filter-query-preview" id="filter-query-preview" style="display:none;">
+      <div class="filter-query-label">Generated query:</div>
+      <div class="filter-query-text" id="filter-query-text"></div>
+      <div class="filter-query-actions">
+        <button class="filter-send-btn" onclick="sendFilterQuery()">Send Query</button>
+        <button class="filter-clear-btn" onclick="clearAllFilters()">Clear</button>
+      </div>
+    </div>
+  </aside>
+
   <!-- ── Chat Area ── -->
   <div id="chat">
     <div id="welcome">
+      <div class="welcome-icon">🔍</div>
       <h2 class="welcome-heading">Ask anything about Yelp businesses</h2>
-      <p class="welcome-sub">1M+ reviews across 10 cities. Tap a city or category to build a query.</p>
+      <p class="welcome-sub">1M+ reviews across 10 cities. Tap a query or explore filters to get started.</p>
+      <p class="welcome-ai-note">Every answer shows how the AI reasoned — explore the SQL, vector matches, and routing behind each response.</p>
+      <span class="welcome-filter-hint" onclick="openFilterSidebar()">Explore filters &rarr; cities, ambiance, parking, music &amp; more</span>
 
-      <div class="welcome-hints">
-        <div class="hint-row">
-          <span class="hint-label">Cities</span>
-          <div class="hint-pills">
-            <button class="pill" data-type="city">Philadelphia</button>
-            <button class="pill" data-type="city">Tucson</button>
-            <button class="pill" data-type="city">Tampa</button>
-            <button class="pill" data-type="city">Nashville</button>
-            <button class="pill" data-type="city">New Orleans</button>
-            <button class="pill" data-type="city">Indianapolis</button>
-            <button class="pill" data-type="city">Reno</button>
-            <button class="pill" data-type="city">Santa Barbara</button>
+      <div class="welcome-chip-groups">
+        <!-- Vibe / Vector -->
+        <div class="chip-group-row">
+          <div class="chip-group-tag">
+            <div class="chip-group-tag-label vibe">Vibe</div>
+            <div class="chip-group-tag-sub vibe">vector search</div>
           </div>
+          <button class="chip-query vibe" data-query="romantic rooftop dining with a quiet ambiance">romantic rooftop dining with a quiet ambiance</button>
+          <button class="chip-query vibe" data-query="cozy cafes perfect for working all day">cozy cafes perfect for working all day</button>
         </div>
-        <div class="hint-row">
-          <span class="hint-label">Types</span>
-          <div class="hint-pills">
-            <button class="pill" data-type="category">Italian</button>
-            <button class="pill" data-type="category">Pizza</button>
-            <button class="pill" data-type="category">Coffee &amp; Tea</button>
-            <button class="pill" data-type="category">Bars</button>
-            <button class="pill" data-type="category">Seafood</button>
-            <button class="pill" data-type="category">Breakfast &amp; Brunch</button>
-            <button class="pill" data-type="category">Nightlife</button>
-            <button class="pill" data-type="category">Sandwiches</button>
+        <!-- Data / SQL -->
+        <div class="chip-group-row">
+          <div class="chip-group-tag">
+            <div class="chip-group-tag-label data">Data</div>
+            <div class="chip-group-tag-sub data">structured sql</div>
           </div>
+          <button class="chip-query data" data-query="top 5 cities by average restaurant rating">top 5 cities by average restaurant rating</button>
+          <button class="chip-query data" data-query="percentage of restaurants with outdoor seating by city">percentage of restaurants with outdoor seating by city</button>
         </div>
-      </div>
-
-      <div class="chips">
-        <button class="chip" data-query="cozy Italian restaurants in New Orleans">cozy Italian in New Orleans</button>
-        <button class="chip" data-query="best pizza places in Philadelphia">best pizza in Philadelphia</button>
-        <button class="chip" data-query="average rating for bars in Nashville">avg rating for bars in Nashville</button>
+        <!-- Both / Hybrid -->
+        <div class="chip-group-row">
+          <div class="chip-group-tag">
+            <div class="chip-group-tag-label both"><span>Both</span></div>
+            <div class="chip-group-tag-sub both">hybrid search</div>
+          </div>
+          <button class="chip-query both" data-query="family-friendly seafood places open on Sundays">family-friendly seafood places open on Sundays</button>
+          <button class="chip-query both" data-query="highly rated brunch spots with free wifi and delivery">highly rated brunch spots with free wifi and delivery</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1034,6 +1331,223 @@
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('send-btn');
     const welcomeEl = document.getElementById('welcome');
+    const filterSidebarEl = document.getElementById('filter-sidebar');
+    const filterOverlayEl = document.getElementById('filter-overlay');
+    const filtersBtnEl = document.getElementById('filters-btn');
+    const drawerEl = document.getElementById('drawer');
+
+    /* ── Filter Sidebar State ── */
+    let filterSidebarOpen = false;
+    const filterSelections = {};
+
+    /* ── Filter Data Definitions ── */
+    const FILTER_GROUPS = {
+      cities: {
+        label: 'Cities', color: 'cyan', tier: 1,
+        pills: ['Philadelphia', 'Tucson', 'Tampa', 'Nashville', 'New Orleans', 'Indianapolis', 'Reno', 'Santa Barbara']
+      },
+      categories: {
+        label: 'Categories', color: 'purple', tier: 1,
+        pills: ['Italian', 'Pizza', 'Coffee & Tea', 'Bars', 'Seafood', 'Breakfast & Brunch', 'Nightlife', 'Sandwiches']
+      },
+      ambiance: {
+        label: 'Ambiance', color: 'amber', tier: 1,
+        pills: ['Full Bar', 'Beer & Wine', 'Quiet', 'Loud', 'Free WiFi', 'No Smoking']
+      },
+      price: {
+        label: 'Price Range', color: 'green', tier: 1,
+        pills: ['$', '$$', '$$$', '$$$$']
+      },
+      amenities: {
+        label: 'Amenities', color: 'pink', tier: 1,
+        pills: ['Outdoor Seating', 'Delivery', 'Good for Kids', 'Reservations', 'Good for Groups', 'Dogs Allowed']
+      },
+      parking: {
+        label: 'Parking', color: 'pink', tier: 2,
+        pills: ['Garage', 'Street', 'Validated', 'Lot', 'Valet']
+      },
+      music: {
+        label: 'Music', color: 'amber', tier: 2,
+        pills: ['DJ', 'Background', 'No Music', 'Jukebox', 'Live', 'Video', 'Karaoke']
+      },
+      hours: {
+        label: 'Hours', color: 'cyan', tier: 2,
+        pills: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+      },
+      'more-amenities': {
+        label: 'More Amenities', color: 'pink', tier: 2,
+        pills: ['Bike Parking', 'Credit Cards', 'Bitcoin', 'Drive Thru', 'Has TV', 'Table Service', 'Take Out', 'Wheelchair Accessible', 'Open 24 Hours', 'By Appointment Only', 'BYOB']
+      }
+    };
+
+    Object.keys(FILTER_GROUPS).forEach(key => { filterSelections[key] = []; });
+
+    /* ── Filter Sidebar Toggle ── */
+    function openFilterSidebar() {
+      filterSidebarEl.classList.add('open');
+      filterOverlayEl.classList.add('open');
+      filtersBtnEl.classList.add('active');
+      filtersBtnEl.innerHTML = '&#128269; Filters &#215;';
+      filterSidebarOpen = true;
+
+      if (window.innerWidth <= 600) {
+        closeDrawer();
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    function closeFilterSidebar() {
+      filterSidebarEl.classList.remove('open');
+      filterOverlayEl.classList.remove('open');
+      filtersBtnEl.classList.remove('active');
+      filtersBtnEl.innerHTML = '&#128269; Filters';
+      filterSidebarOpen = false;
+
+      if (!drawerEl.classList.contains('open')) {
+        document.body.style.overflow = '';
+      }
+    }
+
+    function toggleFilterSidebar() {
+      if (filterSidebarOpen) {
+        closeFilterSidebar();
+      } else {
+        openFilterSidebar();
+      }
+    }
+
+    /* ── Render Filter Pills ── */
+    function renderFilterPills() {
+      Object.entries(FILTER_GROUPS).forEach(([groupKey, group]) => {
+        const container = document.getElementById(`pills-${groupKey}`);
+        if (!container) return;
+        container.innerHTML = '';
+        group.pills.forEach(pillLabel => {
+          const btn = document.createElement('button');
+          btn.className = `filter-pill ${group.color}`;
+          btn.textContent = pillLabel;
+          btn.addEventListener('click', () => toggleFilterPill(groupKey, pillLabel, btn));
+          container.appendChild(btn);
+        });
+      });
+    }
+
+    /* ── Toggle Filter Pill Selection ── */
+    function toggleFilterPill(groupKey, value, btnEl) {
+      const arr = filterSelections[groupKey];
+      const idx = arr.indexOf(value);
+
+      if (idx >= 0) {
+        arr.splice(idx, 1);
+        btnEl.classList.remove('selected');
+      } else {
+        arr.push(value);
+        btnEl.classList.add('selected');
+      }
+
+      updateFilterQueryPreview();
+    }
+
+    /* ── Tier 2 Accordion Toggle ── */
+    function toggleTier2(groupKey) {
+      const pillsEl = document.getElementById(`pills-${groupKey}`);
+      const headerEl = pillsEl.previousElementSibling;
+      const isExpanded = pillsEl.classList.contains('expanded');
+
+      pillsEl.classList.toggle('expanded', !isExpanded);
+      headerEl.innerHTML = `${isExpanded ? '&#9654;' : '&#9660;'} ${FILTER_GROUPS[groupKey].label} (${FILTER_GROUPS[groupKey].pills.length})`;
+    }
+
+    /* ── Generate Natural Language Query from Selections ── */
+    function generateFilterQuery() {
+      const cities = filterSelections.cities;
+      const categories = filterSelections.categories;
+      const ambiance = filterSelections.ambiance;
+      const price = filterSelections.price;
+      const amenities = filterSelections.amenities;
+      const parking = filterSelections.parking;
+      const music = filterSelections.music;
+      const hours = filterSelections.hours;
+      const moreAmenities = filterSelections['more-amenities'];
+
+      const withParts = [];
+      if (ambiance.length > 0) withParts.push(...ambiance.map(a => a.toLowerCase()));
+      if (amenities.length > 0) withParts.push(...amenities.map(a => a.toLowerCase()));
+      if (parking.length > 0) withParts.push(...parking.map(p => `${p.toLowerCase()} parking`));
+      if (music.length > 0) withParts.push(...music.map(m => `${m.toLowerCase()} music`));
+      if (moreAmenities.length > 0) withParts.push(...moreAmenities.map(a => a.toLowerCase()));
+      if (price.length > 0) withParts.push(...price.map(p => `${p} price range`));
+
+      const hourParts = hours.map(h => `open on ${h}s`);
+
+      const catPhrase = categories.length > 0 ? categories.join(' or ') : '';
+      const cityPhrase = cities.length > 0 ? cities.join(', ') : '';
+
+      const totalParts = (catPhrase ? 1 : 0) + (cityPhrase ? 1 : 0) + withParts.length + hourParts.length;
+
+      if (totalParts === 0) return '';
+
+      if (totalParts >= 5) {
+        const allParts = [];
+        if (catPhrase) allParts.push(catPhrase);
+        allParts.push(...withParts);
+        allParts.push(...hourParts);
+        const base = cityPhrase ? `restaurants in ${cityPhrase}` : 'restaurants';
+        return `${base} — ${allParts.join(', ')}`;
+      }
+
+      let query = '';
+
+      if (catPhrase && cityPhrase) {
+        query = `best ${catPhrase} in ${cityPhrase}`;
+      } else if (cityPhrase) {
+        query = `top rated restaurants in ${cityPhrase}`;
+      } else if (catPhrase) {
+        query = `best ${catPhrase} restaurants`;
+      } else {
+        query = 'restaurants';
+      }
+
+      const allQualifiers = [...withParts, ...hourParts];
+      if (allQualifiers.length > 0) {
+        query += ` with ${allQualifiers.join(' and ')}`;
+      }
+
+      return query;
+    }
+
+    /* ── Update Query Preview in Sidebar ── */
+    function updateFilterQueryPreview() {
+      const query = generateFilterQuery();
+      const previewEl = document.getElementById('filter-query-preview');
+      const textEl = document.getElementById('filter-query-text');
+
+      if (query) {
+        textEl.textContent = query;
+        previewEl.style.display = 'block';
+        inputEl.value = query;
+      } else {
+        previewEl.style.display = 'none';
+        inputEl.value = '';
+      }
+    }
+
+    /* ── Send query from sidebar ── */
+    function sendFilterQuery() {
+      const query = generateFilterQuery();
+      if (query) {
+        sendQuery(query);
+        clearAllFilters();
+        closeFilterSidebar();
+      }
+    }
+
+    /* ── Clear all filter selections ── */
+    function clearAllFilters() {
+      Object.keys(filterSelections).forEach(key => { filterSelections[key] = []; });
+      document.querySelectorAll('.filter-pill.selected').forEach(el => el.classList.remove('selected'));
+      updateFilterQueryPreview();
+    }
 
     /* ── Utility: strip route footer from answer text ── */
     function stripRouteFooter(text) {
@@ -1306,49 +1820,11 @@
       inputEl.style.height = `${Math.min(inputEl.scrollHeight, 160)}px`;
     });
 
-    // Chip click handlers
-    document.querySelectorAll('.chip').forEach(chip => {
+    /* ── Query chip click handlers ── */
+    document.querySelectorAll('.chip-query').forEach(chip => {
       chip.addEventListener('click', () => {
         const query = chip.dataset.query;
         if (query) sendQuery(query);
-      });
-    });
-
-    // Pill click handlers — build query from selected cities + categories (multi-select)
-    let selectedCities = [];
-    let selectedCategories = [];
-
-    function updateInputFromPills() {
-      const cats = selectedCategories.length > 0 ? selectedCategories.join(' or ') : '';
-      const cities = selectedCities.length > 0 ? selectedCities.join(', ') : '';
-
-      if (cats && cities) {
-        inputEl.value = `best ${cats} in ${cities}`;
-      } else if (cities) {
-        inputEl.value = `top rated restaurants in ${cities}`;
-      } else if (cats) {
-        inputEl.value = `best ${cats} restaurants`;
-      } else {
-        inputEl.value = '';
-      }
-      inputEl.focus();
-    }
-
-    document.querySelectorAll('.pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        const type = pill.dataset.type;
-        const value = pill.textContent.trim();
-        const arr = type === 'city' ? selectedCities : selectedCategories;
-        const idx = arr.indexOf(value);
-
-        if (idx >= 0) {
-          arr.splice(idx, 1);
-          pill.classList.remove('selected');
-        } else {
-          arr.push(value);
-          pill.classList.add('selected');
-        }
-        updateInputFromPills();
       });
     });
 
@@ -1357,6 +1833,9 @@
       document.getElementById('drawer').classList.add('open');
       document.getElementById('drawer-overlay').classList.add('open');
       document.body.style.overflow = 'hidden';
+      if (window.innerWidth <= 600) {
+        closeFilterSidebar();
+      }
     }
 
     function closeDrawer() {
@@ -1365,10 +1844,16 @@
       document.body.style.overflow = '';
     }
 
-    // Escape key closes drawer
+    // Escape key closes drawer and filter sidebar
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeDrawer();
+      if (e.key === 'Escape') {
+        closeDrawer();
+        closeFilterSidebar();
+      }
     });
+
+    /* ── Initialize filter pills on page load ── */
+    renderFilterPills();
   </script>
 
 </body>

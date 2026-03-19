@@ -11,7 +11,7 @@ Execution order:
 """
 
 from config.settings import settings
-from infra.hive_ddl import BRONZE_BUSINESSES_DDL, BRONZE_REVIEWS_DDL, SILVER_REVIEWS_DDL
+from infra.hive_ddl import BRONZE_BUSINESSES_DDL, BRONZE_REVIEWS_DDL, SILVER_REVIEWS_DDL, SILVER_QUARANTINE_DDL
 from platform_commons.hive import init_metastore
 from platform_commons.kafka import register_all
 from platform_commons.logger import Logger
@@ -48,6 +48,7 @@ def main() -> None:
                 (f"{settings.hive.BRONZE_DB}.businesses", BRONZE_BUSINESSES_DDL.format(db=settings.hive.BRONZE_DB)),
                 (f"{settings.hive.BRONZE_DB}.reviews", BRONZE_REVIEWS_DDL.format(db=settings.hive.BRONZE_DB)),
                 (f"{settings.hive.SILVER_DB}.reviews", SILVER_REVIEWS_DDL.format(db=settings.hive.SILVER_DB)),
+                (f"{settings.hive.SILVER_DB}.quarantine", SILVER_QUARANTINE_DDL.format(db=settings.hive.SILVER_DB)),
             ],
         )
     finally:

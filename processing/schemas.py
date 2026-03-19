@@ -17,6 +17,7 @@ REVIEW_AVRO_JSON: str = json.dumps(REVIEW_AVRO_SCHEMA)
 BUSINESS_TABLE: str = "businesses"
 REVIEW_TABLE: str = "reviews"
 SILVER_TABLE: str = "reviews"
+QUARANTINE_TABLE: str = "quarantine"
 
 
 # ------------------------

@@ -694,3 +694,78 @@ A chat-forward portfolio website deployed on Firebase Hosting (Spark plan). The 
 
 ### Deployment
 Firebase Hosting on Spark plan (free): 1GB storage, 10GB transfer/month. The HTML file is ~30KB. Static-only — all dynamic behavior is client-side JavaScript calling the Flask API on the GCP VM via HTTPS.
+
+---
+
+## Phase 9 — Data Quality: Silver Quarantine & Reconciliation
+
+### The Problem
+The Silver layer performs a stream-stream inner join between businesses (150K) and reviews (1M) on `business_id`. Not all reviews have matching businesses in the Yelp academic dataset — the dataset is a sample, not a complete graph. The inner join silently drops ~250K unmatched reviews. In an enterprise pipeline, you need to know what was dropped and why.
+
+### Design Decision: Why Not Left Outer Join?
+The first instinct was to change Silver's inner join to a left outer join and route unmatched rows to a quarantine table within the same streaming query. This was attempted and worked mechanically, but hit a fundamental Spark Structured Streaming limitation: in a stream-stream left outer join with watermarks, unmatched rows are only emitted when the **nullable side's watermark advances** past the event-time window. In our one-shot bulk load (all data ingested at the same timestamp, then the producer stops), the business watermark never advances — unmatched reviews stay in state forever, waiting for businesses that will never come.
+
+This led to an important insight: **stream-stream outer joins for data quality only work with continuous data flow**, not batch-style loads. A different pattern was needed.
+
+### The Solution: Batch Reconciliation
+Enterprise data platforms commonly separate streaming ingestion from data quality reconciliation. The streaming pipeline optimizes for throughput (inner join, fast, no quarantine overhead). A separate reconciliation job runs after the pipeline catches up, comparing what went in (Bronze) with what came out (Silver) to identify gaps.
+
+**`processing/reconcile.py`** implements this pattern:
+1. Reads `bronze.reviews` (raw input) and `silver.reviews` (joined output)
+2. Performs a `LEFT ANTI JOIN` on `review_id` — finds Bronze reviews absent from Silver
+3. Writes unmatched rows to `silver.quarantine` with raw Bronze columns + a `reason` tag (`unmatched_business_id`)
+4. Logs counts at every step for full transparency
+
+The quarantine table uses the raw Bronze schema (all strings) — not the cleaned Silver schema — so that unmatched rows can be reprocessed through the pipeline after root-cause analysis.
+
+### Infrastructure
+- **DDL:** `SILVER_QUARANTINE_DDL` in `infra/hive_ddl.py` — all STRING columns + `reason` + `quarantine_timestamp`, partitioned by `ingestion_date`
+- **Provisioned by:** `python -m infra` (added to the existing metastore init alongside Bronze and Silver tables)
+- **Schema constant:** `QUARANTINE_TABLE = "quarantine"` in `processing/schemas.py`
+
+### Enterprise Framing
+In production, the reconciliation job would be scheduled by Airflow or Dagster — triggered after the streaming pipeline's SLA window or on a fixed cadence (e.g., hourly). The quarantine table feeds data quality dashboards and alerting. Analysts query it to understand ingestion gaps, and ops teams use it to trigger reprocessing when upstream data issues are resolved.
+
+For this portfolio project, reconciliation runs as a manual step: `python -m processing.reconcile` after Silver shows `rows=0`. The pattern is the same — the orchestrator is just the human instead of Airflow.
+
+### Key Takeaway
+Data quality in streaming pipelines is a two-layer problem: the streaming layer optimizes for throughput and correctness of the happy path; a batch reconciliation layer audits what was lost and why. Trying to do both in a single streaming query leads to architectural compromises (watermark dependencies, memory pressure from outer join state, foreachBatch complexity) that aren't worth the trade-off.
+
+---
+
+## Phase 4: Interactive Filter Sidebar
+
+### What Was Built
+The Firebase chat interface originally showed filter pills (cities and categories) only in the welcome section. After the first query, these disappeared permanently — users lost visibility into what the dataset offers and defaulted to generic queries. The BigQuery gold layer has 65 columns with rich filterable attributes (parking types, music options, ambiance settings, price range, 30+ boolean amenities) that users never discovered.
+
+We added three interconnected components:
+
+1. **Right-side filter sidebar** — a persistent, toggleable panel accessible via a "Filters" button in the header. Contains all queryable fields organized as selectable pills across 9 categories with a two-tier hierarchy: Tier 1 (always expanded: Cities, Categories, Ambiance, Price Range, Top Amenities) and Tier 2 (collapsed accordions: Parking, Music, Hours, More Amenities). Each category has its own color theme for visual grouping.
+
+2. **Natural language query generation** — as users click pills, the sidebar builds a readable natural language query in real-time. Simple selections produce sentences like "best Italian in Tampa with outdoor seating and free wifi." Complex selections (5+ filters) switch to a dash-list format: "restaurants in Tampa — Italian, outdoor seating, free wifi, quiet, has TV." The generated query populates both the sidebar preview and the main input field, where users can edit it before sending. No backend changes required — the existing LangGraph agent router already handles these phrasings.
+
+3. **Trimmed welcome section** — the old city/category pills moved exclusively to the sidebar. The welcome now shows 6 example query chips grouped by route type (Vibe/vector search, Data/structured SQL, Both/hybrid), with each group labeled to teach users what kinds of queries the system supports. An "Explore filters →" hint links directly to the sidebar.
+
+### Why This Design
+
+**Progressive disclosure over information overload.** With 50+ filterable fields, showing everything at once would overwhelm users. The two-tier approach puts the most interesting filters (ambiance, price, popular amenities) front and center, while niche options (Bitcoin accepted, karaoke, BYOB) are one click away in expandable sections.
+
+**Sidebar over inline filters.** The original pills lived in the chat flow — once a conversation started, they vanished. A sidebar is always accessible (toggle button in the header) but never in the way (chat stays full-width when closed). This mirrors enterprise analytics tools like Grafana and Kibana where filter panels persist alongside the main content.
+
+**Natural language over structured filters.** Instead of sending structured filter objects to the API (which would require backend changes), we compose human-readable queries. This has a dual benefit: users can understand and edit the generated text, and the existing LangGraph router already parses natural language into SQL/Vector/Hybrid routes. Zero API changes, full filter expressiveness.
+
+**Route-typed example chips.** The old welcome had three generic queries ("cozy Italian in New Orleans"). The new chips deliberately showcase different query *types* — vibe-based sentiment queries, analytical data queries, and multi-filter hybrid queries — with labels explaining the underlying search mechanism. A portfolio reviewer immediately sees the system's versatility without sending a single query.
+
+### Architecture Decisions
+
+- **Single-file implementation.** All changes live in `firebase/public/index.html` (the existing single-file SPA). No framework, no build step, no new files — consistent with the zero-cost, static-hosting constraint.
+- **Data-driven pill rendering.** A `FILTER_GROUPS` JavaScript object defines all 9 categories with their labels, colors, tiers, and pill values. The `renderFilterPills()` function generates DOM elements from this data. Adding a new filter category means adding one object entry — not editing HTML.
+- **Mobile-first responsive.** On screens under 600px, the sidebar becomes a full-width overlay (same pattern as the existing About drawer). Only one drawer can be open at a time on mobile. Query chip tags hide on mobile to save space; chips stack vertically.
+- **Color-coded categories.** Five distinct color themes (cyan, purple, amber, green, pink) map to filter categories, creating visual grouping that helps users scan 50+ pills without reading every label.
+
+### What It Demonstrates
+
+- **Enterprise UX patterns:** progressive disclosure, persistent filter panels, data-driven UI rendering
+- **Frontend-only feature delivery:** meaningful UX improvement without touching the API, VM, or any backend service
+- **Design thinking:** user journey from discovery (welcome chips) to exploration (sidebar) to query building (natural language generation)
+- **Constraint-driven engineering:** all changes within a single static HTML file deployed via Firebase free tier

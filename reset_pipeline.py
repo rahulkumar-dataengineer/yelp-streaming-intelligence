@@ -6,6 +6,7 @@ Deletes:
   2. Hive Metastore databases (bronze, silver, gold) — DROP CASCADE + recreate
   3. Spark warehouse data (/tmp/spark-warehouse/*)
   4. Spark checkpoints (checkpoints/bronze, checkpoints/silver, checkpoints/gold)
+     and Qdrant backfill bookmark (checkpoints/qdrant_backfill.json)
   5. BigQuery table + dedup view
   6. Qdrant collection
 
@@ -18,7 +19,8 @@ After reset, run in order:
     python -m ingestion.producer      # produce messages to Kafka
     python -m processing.bronze       # consume Kafka → Bronze Parquet
     python -m processing.silver       # Bronze → cleaned/joined Silver
-    python -m processing.gold         # Silver → BigQuery + Qdrant
+    python -m processing.gold         # Silver → BigQuery
+    python -m processing.backfill_qdrant  # BigQuery → Qdrant
 """
 
 import argparse
@@ -116,13 +118,16 @@ def reset_spark_warehouse() -> None:
 
 
 def reset_checkpoints() -> None:
-    """Delete all Spark checkpoint directories."""
+    """Delete all Spark checkpoint directories and the Qdrant backfill bookmark."""
     cp_root = PROJECT_ROOT / "checkpoints"
     if cp_root.exists():
         for child in cp_root.iterdir():
             if child.is_dir():
                 log.info(f"Deleting checkpoint: {child}")
                 shutil.rmtree(child)
+            elif child.is_file():
+                log.info(f"Deleting checkpoint file: {child}")
+                child.unlink()
         log.info("All checkpoints deleted.")
     else:
         log.info("No checkpoints directory — nothing to clean.")
@@ -208,7 +213,8 @@ def main() -> None:
     print("  2. python -m ingestion.producer      # produce to Kafka")
     print("  3. python -m processing.bronze       # Bronze layer")
     print("  4. python -m processing.silver       # Silver layer")
-    print("  5. python -m processing.gold         # Gold layer")
+    print("  5. python -m processing.gold         # Gold layer (BQ only)")
+    print("  6. python -m processing.backfill_qdrant  # Qdrant backfill")
     print()
 
 

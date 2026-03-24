@@ -34,7 +34,7 @@ flask==3.1.0
 flask-cors==5.0.1
 
 # Platform Commons (shared infrastructure)
-portfolio-platform-commons @ git+https://github.com/rahulkumar-dataengineer/portfolio-platform-commons.git@v0.2.1
+portfolio-platform-commons @ git+https://github.com/rahulkumar-dataengineer/portfolio-platform-commons.git@v0.2.2
 
 # Utilities
 python-dotenv==1.0.1

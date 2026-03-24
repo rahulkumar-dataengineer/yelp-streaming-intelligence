@@ -35,7 +35,7 @@ class GeminiSettings:
     API_KEY: str = _require("GEMINI_API_KEY")
     MODEL: str = _optional("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
     EMBEDDING_MODEL: str = _optional("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
-    EMBEDDING_DIMENSIONS: int = int(_optional("GEMINI_EMBEDDING_DIMENSIONS", "768"))
+    EMBEDDING_DIMENSIONS: int = int(_optional("GEMINI_EMBEDDING_DIMENSIONS", "256"))
 
 
 class APISettings:

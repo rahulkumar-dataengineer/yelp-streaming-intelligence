@@ -13,7 +13,15 @@ from collections import deque
 from google import genai
 from google.genai import types as genai_types
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, PointStruct, VectorParams
+from qdrant_client.http.models import (
+    Distance,
+    HnswConfigDiff,
+    PointStruct,
+    ScalarQuantization,
+    ScalarQuantizationConfig,
+    ScalarType,
+    VectorParams,
+)
 from pyspark.sql import DataFrame
 from tenacity import (
     retry,
@@ -149,8 +157,9 @@ class QdrantManager:
     def ensure_collection(self) -> None:
         """Creates the collection if it doesn't already exist.
 
-        Config: 768-dim cosine similarity, vectors stored on disk to stay
-        within the 1GB RAM budget of the GCP e2-micro VM.
+        Config: cosine similarity, vectors on disk, HNSW m=8/ef_construct=50,
+        scalar int8 quantization in RAM. Tuned for 1M vectors on the GCP
+        e2-micro VM (1GB RAM).
         """
 
         if self._client.collection_exists(collection_name=self._collection):
@@ -168,10 +177,21 @@ class QdrantManager:
                 distance=Distance.COSINE,
                 on_disk=True,
             ),
+            hnsw_config=HnswConfigDiff(
+                m=8,
+                ef_construct=50,
+            ),
+            quantization_config=ScalarQuantization(
+                scalar=ScalarQuantizationConfig(
+                    type=ScalarType.INT8,
+                    always_ram=True,
+                ),
+            ),
         )
         log.info(
             f"Qdrant collection created: {self._collection} "
-            f"| size={self._dimensions}, distance=Cosine, on_disk=True"
+            f"| size={self._dimensions}, distance=Cosine, on_disk=True, "
+            f"hnsw(m=8, ef_construct=50), quantization=int8"
         )
 
     def upsert_points(self, points: list[PointStruct]) -> None:

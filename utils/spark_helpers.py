@@ -106,6 +106,7 @@ def run_until_shutdown(
 
     last_progress_log = time.time()
     cumulative_rows: dict[str, int] = {q.name: 0 for q in queries}
+    last_batch_id: dict[str, int] = {q.name: -1 for q in queries}
 
     while get_running():
         for q in queries:
@@ -124,7 +125,7 @@ def run_until_shutdown(
         now = time.time()
         if now - last_progress_log >= progress_interval:
             for q in queries:
-                _log_query_progress(q, cumulative_rows)
+                _log_query_progress(q, cumulative_rows, last_batch_id)
             last_progress_log = now
 
         time.sleep(poll_seconds)
@@ -133,6 +134,7 @@ def run_until_shutdown(
 def _log_query_progress(
     q: StreamingQuery,
     cumulative_rows: dict[str, int],
+    last_batch_id: dict[str, int],
 ) -> None:
     """Logs the latest progress of a single streaming query."""
 
@@ -141,12 +143,15 @@ def _log_query_progress(
         log.info(f"[{q.name}] Waiting for first batch...")
         return
 
-    batch_id = progress.get("batchId", "?")
+    batch_id = progress.get("batchId", -1)
     num_rows = progress.get("numInputRows", 0)
     input_rps = progress.get("inputRowsPerSecond", 0)
     proc_rps = progress.get("processedRowsPerSecond", 0)
 
-    cumulative_rows[q.name] = cumulative_rows.get(q.name, 0) + num_rows
+    # Only accumulate rows when a new batch completes
+    if batch_id != last_batch_id.get(q.name, -1):
+        cumulative_rows[q.name] = cumulative_rows.get(q.name, 0) + num_rows
+        last_batch_id[q.name] = batch_id
 
     # Source-specific offset info
     sources = progress.get("sources", [])

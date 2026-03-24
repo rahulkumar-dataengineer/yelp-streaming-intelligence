@@ -215,6 +215,30 @@ class QdrantManager:
             log.info(f"Qdrant collection does not exist (nothing to reset): {self._collection}")
 
 
+# -------------------------
+# Module-level helper functions
+# -------------------------
+
+def review_id_to_uuid(review_id: str) -> str:
+    """Deterministic UUID from review_id for idempotent Qdrant upserts."""
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, review_id))
+
+
+def build_embedding_text(row: dict) -> str:
+    """Concatenates embedding text fields: "business_name | categories | review_text"."""
+    parts = [str(row.get(field, "") or "") for field in EMBEDDING_TEXT_FIELDS]
+    return " | ".join(parts)
+
+
+def build_payload(row: dict) -> dict:
+    """Extracts payload fields from a row, dropping None values."""
+    payload = {}
+    for field in PAYLOAD_FIELDS:
+        value = row.get(field)
+        if value is not None:
+            payload[field] = value.item() if hasattr(value, "item") else value
+    return payload
+
 
 # -------------------------
 # BatchSink
@@ -238,28 +262,6 @@ class BatchSink:
         """Exposes QdrantManager for setup/reset operations in gold.py."""
         return self._qdrant
 
-    def _review_id_to_uuid(self, review_id: str) -> str:
-        """Deterministic UUID from review_id for idempotent Qdrant upserts."""
-
-        return str(uuid.uuid5(uuid.NAMESPACE_URL, review_id))
-
-    def _build_embedding_text(self, row: dict) -> str:
-        """Concatenates embedding text fields: "business_name | categories | review_text"."""
-
-        parts = [str(row.get(field, "") or "") for field in EMBEDDING_TEXT_FIELDS]
-        return " | ".join(parts)
-
-    def _build_payload(self, row: dict) -> dict:
-        """Extracts payload fields from a row, dropping None values."""
-
-        payload = {}
-        for field in PAYLOAD_FIELDS:
-            value = row.get(field)
-            if value is not None:
-                # Convert numpy/pandas types to native Python for JSON serialization
-                payload[field] = value.item() if hasattr(value, "item") else value
-        return payload
-
     def sink_batch(self, batch_df: DataFrame, batch_id: int) -> None:
         """Embeds and upserts a micro-batch to Qdrant.
 
@@ -274,7 +276,7 @@ class BatchSink:
             row_count = len(qdrant_pdf)
 
             # 2. Build embedding input texts
-            texts = [self._build_embedding_text(row) for _, row in qdrant_pdf.iterrows()]
+            texts = [build_embedding_text(row) for _, row in qdrant_pdf.iterrows()]
 
             # 3. Embed all texts (internally batched at 100/call with rate limiting)
             all_embeddings = self._embedder.embed_batch(texts, batch_id)
@@ -282,9 +284,9 @@ class BatchSink:
             # 4. Build PointStructs
             points: list[PointStruct] = [
                 PointStruct(
-                    id=self._review_id_to_uuid(row["review_id"]),
+                    id=review_id_to_uuid(row["review_id"]),
                     vector=all_embeddings[idx],
-                    payload=self._build_payload(row),
+                    payload=build_payload(row),
                 )
                 for idx, (_, row) in enumerate(qdrant_pdf.iterrows())
             ]

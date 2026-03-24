@@ -769,3 +769,20 @@ We added three interconnected components:
 - **Frontend-only feature delivery:** meaningful UX improvement without touching the API, VM, or any backend service
 - **Design thinking:** user journey from discovery (welcome chips) to exploration (sidebar) to query building (natural language generation)
 - **Constraint-driven engineering:** all changes within a single static HTML file deployed via Firebase free tier
+
+## Phase 5c: Decoupling Qdrant from the Gold Layer
+
+### What Changed
+The gold layer originally ran BigQuery and Qdrant as parallel branches in a single `foreachBatch` callback. This created problems: a 3-hour embedding job blocked BQ loads, Qdrant failures couldn't resume without resetting the entire pipeline, and there was no way to rebuild the vector index independently.
+
+### The Fix
+Gold now only writes to BigQuery — fast, simple, no embedding dependency. A new standalone script (`processing/backfill_qdrant.py`) reads from BigQuery, embeds via Gemini, and upserts to Qdrant. It uses a local JSON bookmark (`checkpoints/qdrant_backfill.json`) to track progress. If it crashes, re-running picks up from the last successful page.
+
+### Key Design Decisions
+- **Single BQ query with client-side pagination** — BigQuery charges per bytes scanned, not per bytes returned. Issuing 200 paginated queries would scan the table 200 times. Instead, one query streams all rows, and the script iterates in pages of 5,000 client-side.
+- **`review_id` as pagination key** — Already unique, already the dedup key. No surrogate key needed.
+- **Atomic bookmark writes** — `os.replace()` on POSIX is atomic. No half-written bookmarks on crash.
+- **BQ as source of truth for Qdrant** — The vector index is now a derived index that can be rebuilt from the authoritative store at any time. The right enterprise pattern.
+
+### Enterprise Framing
+In production, this pattern is common: the analytical store (warehouse/lake) is loaded first by a reliable, fast pipeline, and derived indexes (search, vector, cache) are populated by separate backfill jobs that can be re-run independently. This gives operational flexibility — you can rebuild any derived index without re-running the entire pipeline. The bookmark pattern is analogous to Kafka consumer offsets: track where you left off, resume from there.
